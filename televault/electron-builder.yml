@@ -1,0 +1,27 @@
+appId: com.televault.app
+productName: TeleVault
+directories:
+  output: release
+files:
+  - dist/**/*
+  - dist-electron/**/*
+  - package.json
+extraMetadata:
+  main: dist-electron/electron/main.js
+mac:
+  target:
+    - dmg
+    - zip
+  arch:
+    - x64
+    - arm64
+win:
+  target:
+    - nsis
+linux:
+  target:
+    - AppImage
+    - deb
+publish:
+  provider: github
+  releaseType: release

@@ -1,0 +1,9 @@
+node_modules
+dist
+dist-electron
+release
+.env
+*.session
+*.db
+thumbnails/
+.DS_Store
