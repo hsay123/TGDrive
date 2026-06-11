@@ -9,6 +9,7 @@ import {
   mapApiUser,
   persistSession,
   deleteSetting,
+  warmEntityCache,
   type TGUser,
 } from './client'
 import { initializeChannels } from './channels'
@@ -147,6 +148,7 @@ export async function signIn(
       })
 
       persistSession()
+      await warmEntityCache()
       // Initialize TeleVault Telegram channels after successful sign-in
       try {
         await initializeChannels()
@@ -186,6 +188,7 @@ export async function complete2FA(password: string): Promise<{ user: TGUser }> {
     })
 
     persistSession()
+    await warmEntityCache()
     // Initialize TeleVault Telegram channels after successful 2FA
     try {
       await initializeChannels()
@@ -233,6 +236,8 @@ export async function getCurrentUser(): Promise<TGUser | null> {
     if (!me || me instanceof Api.UserEmpty) {
       return null
     }
+
+    await warmEntityCache()
 
     // On every startup, ensure channels exist (self-healing: covers cases
     // where initializeChannels() failed silently during login)

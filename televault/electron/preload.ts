@@ -31,6 +31,7 @@ const televault: TeleVaultAPI = {
     getTrash: () => ipcRenderer.invoke('files:trash'),
     downloadToTemp: (fileId) => ipcRenderer.invoke('files:downloadToTemp', fileId),
     readLocalFile: (filePath) => ipcRenderer.invoke('files:readLocalFile', filePath),
+    backfillThumbnails: () => ipcRenderer.invoke('files:backfillThumbnails'),
     onUploadProgress: (callback) => {
       const handler = (
         _event: Electron.IpcRendererEvent,

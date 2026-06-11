@@ -2,9 +2,9 @@ import fs from 'fs'
 import path from 'path'
 import os from 'os'
 import { v4 as uuidv4 } from 'uuid'
-import { getClient } from './client'
+import { getClient, getEntityCacheSize } from './client'
 import { getChannelEntity, type ChannelPurpose } from './channels'
-import { withRetry } from './ratelimit'
+import { withRetry, withEntityRetry } from './ratelimit'
 import { getFileById } from '../db/files.db'
 import { getChunksByFileId } from '../db/chunks.db'
 import { getSetting } from './client'
@@ -71,8 +71,14 @@ export async function downloadFromTelegram(
     const purpose = purposeFromChannelId(options.channelId)
     const entity = await getChannelEntity(purpose)
 
-    const messages = await withRetry(() =>
-      client.getMessages(entity, { ids: options.messageId })
+    console.log(
+      '[downloader] About to getMessages, entity:',
+      JSON.stringify(entity)
+    )
+    console.log('[downloader] client._entityCache size:', getEntityCacheSize(client))
+
+    const messages = await withEntityRetry(() =>
+      withRetry(() => client.getMessages(entity, { ids: options.messageId }))
     )
 
     const message = messages[0]
@@ -82,19 +88,21 @@ export async function downloadFromTelegram(
       )
     }
 
-    await withRetry(() =>
-      client.downloadMedia(message, {
-        outputFile: options.destPath,
-        progressCallback: options.onProgress
-          ? (downloaded, total) => {
-              const downloadedNum = Number(downloaded.toString())
-              const totalNum = Number(total.toString())
-              const percent =
-                totalNum > 0 ? (downloadedNum / totalNum) * 100 : 0
-              options.onProgress?.(percent, downloadedNum, totalNum)
-            }
-          : undefined,
-      })
+    await withEntityRetry(() =>
+      withRetry(() =>
+        client.downloadMedia(message, {
+          outputFile: options.destPath,
+          progressCallback: options.onProgress
+            ? (downloaded, total) => {
+                const downloadedNum = Number(downloaded.toString())
+                const totalNum = Number(total.toString())
+                const percent =
+                  totalNum > 0 ? (downloadedNum / totalNum) * 100 : 0
+                options.onProgress?.(percent, downloadedNum, totalNum)
+              }
+            : undefined,
+        })
+      )
     )
   } catch (error) {
     console.error('[downloader] downloadFromTelegram error:', error)

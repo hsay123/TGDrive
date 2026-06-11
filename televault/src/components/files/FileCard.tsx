@@ -3,6 +3,7 @@ import { Folder, Lock } from 'lucide-react'
 import type { VFSEntry } from '../../types'
 import { formatFileSize } from '../../lib/utils'
 import { FileIcon } from './FileIcon'
+import { toThumbnailUrl } from '../../lib/tvfile'
 
 interface FileCardProps {
   entry: VFSEntry
@@ -20,6 +21,8 @@ export function FileCard({
   onContextMenu,
 }: FileCardProps) {
   const isFolder = entry.type === 'folder'
+  const thumbnailUrl =
+    entry.type === 'file' ? toThumbnailUrl(entry.thumbnailPath) : null
 
   const mimeLabel = entry.type === 'file'
     ? (entry.mimeType?.split('/')[1]?.toUpperCase() ?? 'FILE')
@@ -41,11 +44,14 @@ export function FileCard({
       <div className="flex flex-1 items-center justify-center bg-gray-800/50 p-4 h-[100px]">
         {isFolder ? (
           <Folder className="h-14 w-14 text-violet-400" />
-        ) : entry.thumbnailPath ? (
+        ) : thumbnailUrl ? (
           <img
-            src={`file://${entry.thumbnailPath}`}
+            src={thumbnailUrl}
             alt={entry.name}
             className="h-full w-full object-cover rounded-md"
+            onError={(e) => {
+              e.currentTarget.style.display = 'none'
+            }}
           />
         ) : (
           <FileIcon mime={entry.mimeType} size="lg" />

@@ -47,6 +47,7 @@ export interface TeleVaultAPI {
     getTrash: () => Promise<IpcResult<TrashRow[]>>
     downloadToTemp: (fileId: string) => Promise<IpcResult<string>>
     readLocalFile: (filePath: string) => Promise<IpcResult<Uint8Array>>
+    backfillThumbnails: () => Promise<IpcResult<{ processed: number; total: number }>>
     onUploadProgress: (
       callback: (data: { localPath: string; percent: number }) => void
     ) => () => void

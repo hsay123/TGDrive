@@ -5,7 +5,11 @@ import fs from 'fs/promises'
 import * as vfs from '../../core/fs/vfs'
 import { getVersionsByFileId } from '../../core/db/versions.db'
 import { getTrashedFiles } from '../../core/db/trash.db'
-import { getFileById } from '../../core/db/files.db'
+import {
+  getFileById,
+  getAllFiles,
+  updateFileThumbnail,
+} from '../../core/db/files.db'
 import { downloadFile } from '../../core/telegram/downloader'
 import type { Version } from '../../core/db/schema'
 import { ipcResult } from './helpers'
@@ -105,7 +109,37 @@ export function registerFilesIpc(
   ipcMain.handle(
     'files:delete',
     async (_event, fileId: string, permanent?: boolean) =>
-      ipcResult(() => vfs.deleteFile(fileId, permanent))
+      ipcResult(async () => {
+        const result = await vfs.deleteFile(fileId, permanent)
+
+        // If permanent delete, also delete from Telegram (best-effort)
+        if (permanent && result && result.fileId && result.chunks.length > 0) {
+          try {
+            const { getClient } = await import('../../core/telegram/client')
+            const { getChannelEntity } = await import('../../core/telegram/channels')
+            const { withRetry, withEntityRetry } = await import('../../core/telegram/ratelimit')
+
+            const tg = getClient()
+            // Group chunks by channel_id
+            const messageIdsByChannel = new Map<string, number[]>()
+            for (const chunk of result.chunks) {
+              const ids = messageIdsByChannel.get(chunk.channel_id) || []
+              ids.push(chunk.message_id)
+              messageIdsByChannel.set(chunk.channel_id, ids)
+            }
+
+            for (const [, messageIds] of messageIdsByChannel) {
+              const entity = await getChannelEntity('storage')
+              await withEntityRetry(() =>
+                withRetry(() => tg.deleteMessages(entity, messageIds, { revoke: true }))
+              )
+            }
+          } catch (err) {
+            // DB cleanup already succeeded — log but don't throw
+            console.error('[permanentDelete] Failed to delete from Telegram (non-fatal):', err)
+          }
+        }
+      })
   )
 
   ipcMain.handle(
@@ -174,11 +208,49 @@ export function registerFilesIpc(
     })
   )
 
-  // Preview: read a local file as Buffer (renderer converts to Blob URL)
+  // Preview: read a local file as Buffer (legacy — prefer tvfile:// URLs)
   ipcMain.handle('files:readLocalFile', async (_event, filePath: string) =>
     ipcResult(async () => {
       const buffer = await fs.readFile(filePath)
       return buffer
+    })
+  )
+
+  ipcMain.handle('files:backfillThumbnails', async () =>
+    ipcResult(async () => {
+      const sharp = (await import('sharp')).default
+      const allFiles = getAllFiles()
+      const imagesWithoutThumbs = allFiles.filter(
+        (f) => f.mime_type?.startsWith('image/') && !f.thumbnail_path
+      )
+
+      const thumbDir = path.join(app.getPath('userData'), 'thumbnails')
+      const cacheDir = path.join(app.getPath('userData'), 'preview-cache')
+      await fs.mkdir(thumbDir, { recursive: true })
+      await fs.mkdir(cacheDir, { recursive: true })
+
+      let processed = 0
+      for (const file of imagesWithoutThumbs) {
+        try {
+          const ext = path.extname(file.name)
+          const tempPath = path.join(cacheDir, `${file.id}-backfill${ext}`)
+          await downloadFile(file.id, tempPath)
+
+          const thumbPath = path.join(thumbDir, `${file.id}.jpg`)
+          await sharp(tempPath)
+            .resize(200, 200, { fit: 'cover' })
+            .jpeg({ quality: 70 })
+            .toFile(thumbPath)
+
+          updateFileThumbnail(file.id, thumbPath)
+          await fs.unlink(tempPath).catch(() => {})
+          processed++
+        } catch (err) {
+          console.error(`[backfill] Failed for file ${file.id}:`, err)
+        }
+      }
+
+      return { processed, total: imagesWithoutThumbs.length }
     })
   )
 }

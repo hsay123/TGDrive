@@ -1,5 +1,6 @@
-import { app, BrowserWindow, ipcMain, dialog, shell } from 'electron'
+import { app, BrowserWindow, ipcMain, dialog, shell, protocol, net, session } from 'electron'
 import path from 'path'
+import { pathToFileURL } from 'url'
 import { config } from 'dotenv'
 import { getDb } from '../core/db/db'
 import { ensureRootFolder } from '../core/fs/vfs'
@@ -13,6 +14,18 @@ import { initUpdater, installUpdate } from './updater'
 import { ipcResult } from './ipc/helpers'
 
 config()
+
+protocol.registerSchemesAsPrivileged([
+  {
+    scheme: 'tvfile',
+    privileges: {
+      standard: true,
+      secure: true,
+      supportFetchAPI: true,
+      stream: true,
+    },
+  },
+])
 
 const isDev = !app.isPackaged
 let mainWindow: BrowserWindow | null = null
@@ -121,7 +134,65 @@ function registerAllIpc(): void {
   registerSystemIpc()
 }
 
+function isPathInsideDir(baseDir: string, targetPath: string): boolean {
+  const base = path.resolve(baseDir) + path.sep
+  const resolved = path.resolve(targetPath)
+  return resolved.startsWith(base)
+}
+
 app.whenReady().then(() => {
+  const userDataPath = app.getPath('userData')
+  const allowedDirs = [
+    path.join(userDataPath, 'thumbnails'),
+    path.join(userDataPath, 'preview-cache'),
+  ]
+
+  protocol.handle('tvfile', (request) => {
+    const url = new URL(request.url)
+    const category = url.hostname
+    const relativePath = decodeURIComponent(url.pathname).replace(/^\/+/, '')
+
+    const baseDir = path.join(userDataPath, category)
+    if (!allowedDirs.includes(baseDir)) {
+      return new Response('Forbidden', { status: 403 })
+    }
+
+    const resolvedPath = path.normalize(path.join(baseDir, relativePath))
+    if (!isPathInsideDir(baseDir, resolvedPath)) {
+      return new Response('Forbidden', { status: 403 })
+    }
+
+    return net.fetch(pathToFileURL(resolvedPath).toString())
+  })
+
+  const csp = isDev
+    ? // DEV: permissive — allows Vite HMR, inline scripts, eval (needed for Fast Refresh)
+      "default-src 'self' http://localhost:5173 ws://localhost:5173; " +
+      "img-src 'self' data: blob: tvfile: http://localhost:5173; " +
+      "media-src 'self' tvfile:; " +
+      "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; " +
+      "font-src 'self' https://fonts.gstatic.com data:; " +
+      "script-src 'self' 'unsafe-inline' 'unsafe-eval' http://localhost:5173; " +
+      "frame-src 'self' tvfile:; " +
+      "connect-src 'self' http://localhost:5173 ws://localhost:5173"
+    : // PRODUCTION: strict — no unsafe-inline/eval needed since Vite build has no HMR
+      "default-src 'self'; " +
+      "img-src 'self' data: blob: tvfile:; " +
+      "media-src 'self' tvfile:; " +
+      "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; " +
+      "font-src 'self' https://fonts.gstatic.com data:; " +
+      "script-src 'self'; " +
+      "frame-src 'self' tvfile:; " +
+      "connect-src 'self'"
+
+  session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
+    const responseHeaders = { ...details.responseHeaders }
+    delete responseHeaders['Content-Security-Policy']
+    delete responseHeaders['content-security-policy']
+    responseHeaders['Content-Security-Policy'] = [csp]
+    callback({ responseHeaders })
+  })
+
   getDb()
   ensureRootFolder()
   registerAllIpc()

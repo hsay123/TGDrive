@@ -1,5 +1,5 @@
 import { getDb } from './db'
-import type { File, TrashEntry } from './schema'
+import type { Chunk, File, TrashEntry } from './schema'
 import { createFile, softDeleteFile } from './files.db'
 
 export interface TrashRow {
@@ -105,4 +105,56 @@ export function trashFolderContents(folderId: string): void {
   for (const file of files) {
     softDeleteFile(file.id)
   }
+}
+
+/**
+ * Permanently delete a trash entry and all related DB records (chunks, versions).
+ * Returns the chunks so the caller can delete the underlying Telegram messages.
+ *
+ * Looks up by trash.id first, falls back to trash.file_id for robustness
+ * (in case the frontend passes the original file ID instead of the trash row ID).
+ */
+export function permanentlyDeleteTrashEntry(trashId: string): {
+  fileId: string
+  chunks: Chunk[]
+} {
+  const db = getDb()
+
+  // Look up by trash entry ID (the row's own `id`)
+  let trashEntry = db
+    .prepare('SELECT * FROM trash WHERE id = ?')
+    .get(trashId) as TrashEntry | undefined
+
+  // Fallback: try matching by the original file_id
+  if (!trashEntry) {
+    trashEntry = db
+      .prepare('SELECT * FROM trash WHERE file_id = ?')
+      .get(trashId) as TrashEntry | undefined
+  }
+
+  if (!trashEntry) {
+    throw new Error(`Trash entry not found: ${trashId}`)
+  }
+
+  if (!trashEntry.file_id) {
+    // Folder trash entry — just remove the trash row
+    db.prepare('DELETE FROM trash WHERE id = ?').run(trashEntry.id)
+    return { fileId: '', chunks: [] }
+  }
+
+  // Get chunks BEFORE deleting (need message_id + channel_id to delete from Telegram)
+  const chunks = db
+    .prepare('SELECT * FROM chunks WHERE file_id = ?')
+    .all(trashEntry.file_id) as Chunk[]
+
+  // Clean up all related DB records atomically
+  const transaction = db.transaction(() => {
+    db.prepare('DELETE FROM chunks WHERE file_id = ?').run(trashEntry.file_id)
+    db.prepare('DELETE FROM versions WHERE file_id = ?').run(trashEntry.file_id)
+    db.prepare('DELETE FROM trash WHERE id = ?').run(trashEntry.id)
+    // No need to DELETE FROM files — it was already removed by softDeleteFile()
+  })
+  transaction()
+
+  return { fileId: trashEntry.file_id, chunks }
 }

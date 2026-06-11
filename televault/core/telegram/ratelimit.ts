@@ -55,6 +55,29 @@ export async function withRetry<T>(
   throw lastError
 }
 
+/**
+ * Like withRetry, but detects "Could not find the input entity" errors and
+ * refreshes gramjs's entity cache before retrying once.
+ */
+export async function withEntityRetry<T>(fn: () => Promise<T>): Promise<T> {
+  try {
+    return await fn()
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : String(error)
+
+    if (msg.includes('Could not find the input entity')) {
+      console.warn(
+        '[entity-retry] Entity not found, refreshing cache and retrying once...'
+      )
+      const { warmEntityCache } = await import('./client')
+      await warmEntityCache()
+      return await fn()
+    }
+
+    throw error
+  }
+}
+
 export class RateLimiter {
   private tokens: number
   private lastRefill: number

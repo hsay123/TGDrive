@@ -13,12 +13,11 @@ import {
   getFilesByFolder,
   getFileById,
   softDeleteFile,
-  deleteFile as hardDeleteFile,
   moveFile,
   updateFile,
   searchFiles as dbSearchFiles,
 } from '../db/files.db'
-import { restoreFromTrash, trashFolderContents } from '../db/trash.db'
+import { restoreFromTrash, trashFolderContents, permanentlyDeleteTrashEntry } from '../db/trash.db'
 import { getSetting, setSetting } from '../db/settings.db'
 import { uploadFile as telegramUpload } from '../telegram/uploader'
 import { downloadFile as telegramDownload } from '../telegram/downloader'
@@ -201,9 +200,11 @@ export async function downloadFile(
 export async function deleteFile(
   fileId: string,
   permanent = false
-): Promise<void> {
+): Promise<{ fileId: string; chunks: import('../db/schema').Chunk[] } | void> {
   if (permanent) {
-    hardDeleteFile(fileId)
+    // fileId here is actually a trash entry ID — look up from trash table,
+    // clean up chunks/versions, and return chunk info for Telegram cleanup
+    return permanentlyDeleteTrashEntry(fileId)
   } else {
     softDeleteFile(fileId)
   }

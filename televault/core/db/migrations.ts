@@ -13,32 +13,65 @@ export const MIGRATIONS: Migration[] = [
   },
 ]
 
-function getCurrentVersion(db: Database.Database): number {
-  try {
-    const row = db
-      .prepare('SELECT MAX(version) AS version FROM schema_migrations')
-      .get() as { version: number | null } | undefined
-    return row?.version ?? 0
-  } catch {
-    return 0
+/**
+ * Safely add a column to a table if it doesn't already exist.
+ * SQLite doesn't support ALTER TABLE ADD COLUMN IF NOT EXISTS,
+ * so we check PRAGMA table_info first.
+ */
+function ensureColumn(
+  db: Database.Database,
+  table: string,
+  column: string,
+  definition: string
+): void {
+  const columns = db.prepare(`PRAGMA table_info(${table})`).all() as {
+    name: string
+  }[]
+  const exists = columns.some((col) => col.name === column)
+  if (!exists) {
+    db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`)
+    console.log(`[migration] Added column ${column} to ${table}`)
   }
 }
 
 export function runMigrations(db: Database.Database): void {
-  const currentVersion = getCurrentVersion(db)
+  // Ensure the migrations tracking table exists
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS schema_migrations (
+      version    INTEGER PRIMARY KEY,
+      applied_at INTEGER NOT NULL
+    )
+  `)
 
-  for (const migration of MIGRATIONS) {
-    if (migration.version <= currentVersion) {
-      continue
-    }
+  const applied = new Set(
+    (
+      db.prepare('SELECT version FROM schema_migrations').all() as {
+        version: number
+      }[]
+    ).map((r) => r.version)
+  )
 
+  // Migration 1: base schema — creates all tables if they don't exist
+  if (!applied.has(1)) {
     const apply = db.transaction(() => {
-      db.exec(migration.up)
+      db.exec(SCHEMA)
       db.prepare(
         'INSERT INTO schema_migrations (version, applied_at) VALUES (?, ?)'
-      ).run(migration.version, Date.now())
+      ).run(1, Date.now())
     })
-
     apply()
+    console.log('[migration 1] Applied base schema')
+  }
+
+  // Migration 2: add file_data column to trash if missing (schema drift fix)
+  if (!applied.has(2)) {
+    const apply = db.transaction(() => {
+      ensureColumn(db, 'trash', 'file_data', 'TEXT')
+      db.prepare(
+        'INSERT INTO schema_migrations (version, applied_at) VALUES (?, ?)'
+      ).run(2, Date.now())
+    })
+    apply()
+    console.log('[migration 2] Ensured file_data column exists on trash table')
   }
 }

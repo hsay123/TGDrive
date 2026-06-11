@@ -7,7 +7,7 @@ import mime from 'mime-types'
 import sharp from 'sharp'
 import { getClient, getSetting } from './client'
 import { getChannelId, getChannelEntity, type ChannelPurpose } from './channels'
-import { withRetry } from './ratelimit'
+import { withRetry, withEntityRetry } from './ratelimit'
 import { createFile, updateFileThumbnail } from '../db/files.db'
 import { createChunk } from '../db/chunks.db'
 import { getFolderByPath } from '../db/folders.db'
@@ -98,18 +98,20 @@ export async function uploadToTelegram(
       throw new Error('No file input available for upload')
     }
 
-    const message = await withRetry(() =>
-      client.sendFile(entity, {
-        file: fileInput,
-        caption: options.caption,
-        forceDocument: true,
-        progressCallback: options.onProgress
-          ? (progress: number) => {
-              const percent = progress * 100
-              options.onProgress?.(percent, percent, 100)
-            }
-          : undefined,
-      })
+    const message = await withEntityRetry(() =>
+      withRetry(() =>
+        client.sendFile(entity, {
+          file: fileInput,
+          caption: options.caption,
+          forceDocument: true,
+          progressCallback: options.onProgress
+            ? (progress: number) => {
+                const percent = progress * 100
+                options.onProgress?.(percent, percent, 100)
+              }
+            : undefined,
+        })
+      )
     )
 
     return {

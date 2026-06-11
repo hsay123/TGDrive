@@ -50,6 +50,11 @@ export function getFileByPath(filePath: string): File | undefined {
     | undefined
 }
 
+export function getAllFiles(): File[] {
+  const db = getDb()
+  return db.prepare('SELECT * FROM files').all() as File[]
+}
+
 export function getFilesByFolder(folderId: string): File[] {
   const db = getDb()
   return db

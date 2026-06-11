@@ -71,15 +71,48 @@ export async function initClient(sessionString: string): Promise<TelegramClient>
     })
 
     await _client.connect()
-    // NOTE: Do NOT call getMe() here. The session may be empty (fresh login)
-    // or stale, which would throw AUTH_KEY_UNREGISTERED before the user even
-    // attempts to sign in. Session validity is checked separately in auth.ts.
+    // Warm the entity cache so PeerUser/PeerChannel lookups work without
+    // triggering "Could not find input entity" on a cold session.
+    // Non-fatal if session is empty/stale — validity is checked in auth.ts.
+    await warmEntityCache()
+    console.log(
+      '[client] entity cache size after warm-up:',
+      getEntityCacheSize(_client)
+    )
 
     return _client
   } catch (error) {
     console.error('[client] initClient error:', error)
     await destroyClient()
     throw error
+  }
+}
+
+/** Debug helper — gramjs EntityCache stores entries in a private cacheMap. */
+export function getEntityCacheSize(client: TelegramClient): number | undefined {
+  const cacheMap = (
+    client as unknown as { _entityCache?: { cacheMap?: Map<unknown, unknown> } }
+  )._entityCache?.cacheMap
+  return cacheMap?.size
+}
+
+/**
+ * Warm gramjs's in-memory entity cache.
+ * Call once after a successful connect/login — and again defensively
+ * before any download operation if a "Could not find input entity" error occurs.
+ */
+export async function warmEntityCache(): Promise<void> {
+  const client = getClient()
+  try {
+    const me = await client.getMe()
+    if (me) {
+      console.log('[client] Warmed entity cache: self =', me.id?.toString())
+    }
+
+    await client.getDialogs({ limit: 100 })
+    console.log('[client] Warmed entity cache: dialogs loaded')
+  } catch (error) {
+    console.error('[client] warmEntityCache failed (non-fatal):', error)
   }
 }
 

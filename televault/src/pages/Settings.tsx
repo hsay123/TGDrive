@@ -40,6 +40,7 @@ export default function Settings() {
   const [autoSync, setAutoSync] = useState('0')
   const [version, setVersion] = useState('0.1.0')
   const [isLoggingOut, setIsLoggingOut] = useState(false)
+  const [isBackfilling, setIsBackfilling] = useState(false)
 
   useEffect(() => {
     window.televault.settings.get('encryption_enabled').then((r) => {
@@ -204,6 +205,35 @@ export default function Settings() {
                   </div>
                 ))}
               </div>
+            </div>
+
+            <div className="rounded-xl border border-gray-700 bg-gray-900 p-6">
+              <h3 className="mb-1 font-semibold text-gray-100">Thumbnails</h3>
+              <p className="mb-4 text-xs text-gray-500">
+                Generate thumbnails for images uploaded before thumbnail support was added.
+              </p>
+              <Button
+                variant="secondary"
+                size="sm"
+                loading={isBackfilling}
+                onClick={async () => {
+                  setIsBackfilling(true)
+                  try {
+                    const result = await window.televault.files.backfillThumbnails()
+                    if (result.success && result.data) {
+                      toast.success(
+                        `Generated ${result.data.processed} of ${result.data.total} thumbnails`
+                      )
+                    } else {
+                      toast.error(result.error ?? 'Thumbnail backfill failed')
+                    }
+                  } finally {
+                    setIsBackfilling(false)
+                  }
+                }}
+              >
+                Generate Missing Thumbnails
+              </Button>
             </div>
 
             <div className="rounded-xl border border-red-800/30 bg-red-900/5 p-6">
