@@ -1,5 +1,5 @@
 import clsx from 'clsx'
-import { Folder, Lock } from 'lucide-react'
+import { Folder, Lock, Star } from 'lucide-react'
 import type { VFSEntry } from '../../types'
 import { formatFileSize } from '../../lib/utils'
 import { FileIcon } from './FileIcon'
@@ -8,6 +8,7 @@ import { useFilesStore } from '../../store/files.store'
 import { useUIStore } from '../../store/ui.store'
 import { useState, useRef } from 'react'
 import { useVirtualizer } from '@tanstack/react-virtual'
+import toast from 'react-hot-toast'
 
 type SortKey = 'name' | 'size' | 'type' | 'updated'
 type SortDir = 'asc' | 'desc'
@@ -22,6 +23,9 @@ export function FileList({ entries: entriesProp }: FileListProps) {
   const selectedIds = useFilesStore((s) => s.selectedIds)
   const selectFile = useFilesStore((s) => s.selectFile)
   const setPath = useFilesStore((s) => s.setPath)
+  const renamingId = useFilesStore((s) => s.renamingId)
+  const setRenamingId = useFilesStore((s) => s.setRenamingId)
+  const refreshFolder = useFilesStore((s) => s.refreshFolder)
   const setPreviewEntryId = useUIStore((s) => s.setPreviewEntryId)
   const [contextMenu, setContextMenu] = useState<{
     x: number; y: number; entry: VFSEntry
@@ -83,6 +87,29 @@ export function FileList({ entries: entriesProp }: FileListProps) {
   const SortIcon = ({ col }: { col: SortKey }) => {
     if (sortKey !== col) return <span className="ml-1 text-gray-700">↕</span>
     return <span className="ml-1 text-violet-400">{sortDir === 'asc' ? '↑' : '↓'}</span>
+  }
+
+  async function handleRename(entry: VFSEntry, newName: string) {
+    setRenamingId(null)
+    const trimmed = newName.trim()
+    if (!trimmed || trimmed === entry.name) return
+    if (trimmed.includes('/') || trimmed.includes('\\')) {
+      toast.error('Name cannot contain / or \\')
+      return
+    }
+    try {
+      if (entry.type === 'file') {
+        const result = await window.televault.files.rename(entry.id, trimmed)
+        if (!result.success) throw new Error(result.error)
+      } else {
+        const result = await window.televault.folders.rename(entry.id, trimmed)
+        if (!result.success) throw new Error(result.error)
+      }
+      toast.success('Renamed successfully')
+      await refreshFolder()
+    } catch (err) {
+      toast.error(`Rename failed: ${err instanceof Error ? err.message : String(err)}`)
+    }
   }
 
   return (
@@ -164,9 +191,30 @@ export function FileList({ entries: entriesProp }: FileListProps) {
                       </div>
                       {/* Name */}
                       <div className="flex-1 min-w-0 px-3 flex items-center gap-2">
-                        <span className="truncate text-gray-100">{entry.name}</span>
-                        {entry.type === 'file' && entry.isEncrypted && (
-                          <Lock className="h-3 w-3 text-teal-500 flex-shrink-0" />
+                        {renamingId === entry.id ? (
+                          <input
+                            autoFocus
+                            defaultValue={entry.name}
+                            className="w-full rounded border border-violet-500 bg-gray-900 px-1.5 py-0.5 text-sm text-gray-100 outline-none focus:ring-1 focus:ring-violet-500"
+                            onClick={(e) => e.stopPropagation()}
+                            onBlur={(e) => handleRename(entry, e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') handleRename(entry, e.currentTarget.value)
+                              if (e.key === 'Escape') setRenamingId(null)
+                              e.stopPropagation()
+                            }}
+                            onFocus={(e) => e.target.select()}
+                          />
+                        ) : (
+                          <>
+                            <span className="truncate text-gray-100">{entry.name}</span>
+                            {entry.type === 'file' && (entry as any).starred === 1 && (
+                              <Star className="h-3 w-3 fill-yellow-400 text-yellow-400 flex-shrink-0" />
+                            )}
+                            {entry.type === 'file' && entry.isEncrypted && (
+                              <Lock className="h-3 w-3 text-teal-500 flex-shrink-0" />
+                            )}
+                          </>
                         )}
                       </div>
                       {/* Size */}

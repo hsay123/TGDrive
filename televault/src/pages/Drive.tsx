@@ -7,13 +7,14 @@ import { FileList } from '../components/files/FileList'
 import { FilePreview } from '../components/files/FilePreview'
 import { DropZone } from '../components/upload/DropZone'
 import { UploadQueue } from '../components/upload/UploadQueue'
-import { UpgradeModal } from '../components/shared/UpgradeModal'
+
 import { Spinner } from '../components/shared/Spinner'
 import { useFilesStore } from '../store/files.store'
 import { useTreeStore } from '../store/tree.store'
 import { useUIStore } from '../store/ui.store'
 import { useUpload } from '../hooks/useUpload'
 import { useSearch } from '../hooks/useSearch'
+import { MoveToModal } from '../components/folders/MoveToModal'
 
 export default function Drive() {
   const currentPath = useFilesStore((s) => s.currentPath)
@@ -41,28 +42,28 @@ export default function Drive() {
     loadTree()
     loadFolder('/')
 
-    // Check if Telegram channels are set up; auto-initialize if missing
-    ;(async () => {
-      try {
-        setChannelBanner('checking')
-        const status = await window.televault.system.getChannelStatus()
-        if (status.ok && !status.data?.ready) {
-          setChannelBanner('initializing')
-          const result = await window.televault.system.initializeChannels()
-          if (result.ok) {
-            setChannelBanner(null) // success — hide banner
+      // Check if Telegram channels are set up; auto-initialize if missing
+      ; (async () => {
+        try {
+          setChannelBanner('checking')
+          const status = await window.televault.system.getChannelStatus()
+          if (status.ok && !status.data?.ready) {
+            setChannelBanner('initializing')
+            const result = await window.televault.system.initializeChannels()
+            if (result.ok) {
+              setChannelBanner(null) // success — hide banner
+            } else {
+              setChannelError(result.error ?? 'Could not set up storage channels')
+              setChannelBanner('error')
+            }
           } else {
-            setChannelError(result.error ?? 'Could not set up storage channels')
-            setChannelBanner('error')
+            setChannelBanner(null) // already ready
           }
-        } else {
-          setChannelBanner(null) // already ready
+        } catch (err) {
+          console.error('[Drive] channel check error:', err)
+          setChannelBanner(null) // fail silently, upload will retry
         }
-      } catch (err) {
-        console.error('[Drive] channel check error:', err)
-        setChannelBanner(null) // fail silently, upload will retry
-      }
-    })()
+      })()
   }, [loadTree, loadFolder])
 
   useEffect(() => {
@@ -185,7 +186,7 @@ export default function Drive() {
         onClose={() => setPreviewEntryId(null)}
       />
 
-      <UpgradeModal />
+      <MoveToModal />
     </div>
   )
 }

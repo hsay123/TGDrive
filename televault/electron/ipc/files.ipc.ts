@@ -2,6 +2,8 @@ import { app } from 'electron'
 import type { BrowserWindow, IpcMain, dialog } from 'electron'
 import path from 'path'
 import fs from 'fs/promises'
+import fsSync from 'fs'
+import { execSync } from 'child_process'
 import * as vfs from '../../core/fs/vfs'
 import { getVersionsByFileId } from '../../core/db/versions.db'
 import { getTrashedFiles } from '../../core/db/trash.db'
@@ -64,7 +66,24 @@ export function registerFilesIpc(
       encrypt: boolean
     ) =>
       ipcResult(async () => {
-        // Ensure channels exist before attempting upload (self-healing)
+        // ── Disk space pre-check (technical limit — not a business limit) ──
+        const fileSize = fsSync.statSync(localPath).size
+        const CHUNK_SIZE = 512 * 1024 * 1024 // 512 MB (matches chunker)
+        function getFreeDiskBytes(dir: string): number {
+          try {
+            const out = execSync(`df -k "${dir}" | tail -1 | awk '{print $4}'`).toString().trim()
+            return parseInt(out) * 1024
+          } catch { return Infinity }
+        }
+        const freeSpace = getFreeDiskBytes(app.getPath('userData'))
+        const needed = Math.min(fileSize, CHUNK_SIZE)
+        if (freeSpace < needed * 1.2) {
+          throw new Error(
+            `DISK_FULL:${JSON.stringify({ free: freeSpace, needed })}`
+          )
+        }
+
+        // ── Upload ───────────────────────────────────────────────────────
         await ensureChannelsReady()
         const win = getMainWindow()
         return vfs.uploadFile({
@@ -162,8 +181,51 @@ export function registerFilesIpc(
     ipcResult(() => vfs.searchFiles(query))
   )
 
+  ipcMain.handle(
+    'files:copyMultiple',
+    async (_event, fileIds: string[], destPath: string) =>
+      ipcResult(async () => {
+        const { copyMultiple } = await import('../../core/telegram/copier')
+        return copyMultiple(fileIds, destPath)
+      })
+  )
+
+  ipcMain.handle('files:recent', async (_event, limit?: number) =>
+    ipcResult(() => vfs.getRecentFiles(limit ?? 50))
+  )
+
+  ipcMain.handle('files:toggleStar', async (_event, id: string) =>
+    ipcResult(async () => {
+      const starred = await vfs.toggleStar(id)
+      return { starred }
+    })
+  )
+
+  ipcMain.handle('files:starred', async () =>
+    ipcResult(() => vfs.getStarredFiles())
+  )
+
+  ipcMain.handle('files:shareLink', async (_event, fileId: string) =>
+    ipcResult(async () => {
+      const { getDb } = await import('../../core/db/db')
+      const db = getDb()
+      const chunks = db.prepare('SELECT * FROM chunks WHERE file_id = ? ORDER BY chunk_index ASC').all(fileId) as { message_id: number; channel_id: string }[]
+      if (chunks.length === 0) throw new Error('File has no content chunks')
+      const channelId = chunks[0].channel_id.replace(/^-100/, '')
+      const messageId = chunks[0].message_id
+      return { url: `https://t.me/c/${channelId}/${messageId}` }
+    })
+  )
+
   ipcMain.handle('files:versions', async (_event, fileId: string) =>
     ipcResult(() => getVersionsByFileId(fileId).map(mapVersion))
+  )
+
+  ipcMain.handle('files:restoreVersion', async (_event, versionId: string) =>
+    ipcResult(async () => {
+      const { restoreVersion } = await import('../../core/db/versions.db')
+      return restoreVersion(versionId)
+    })
   )
 
   ipcMain.handle('files:trash', async () =>
@@ -218,6 +280,7 @@ export function registerFilesIpc(
 
   ipcMain.handle('files:backfillThumbnails', async () =>
     ipcResult(async () => {
+      // @ts-ignore
       const sharp = (await import('sharp')).default
       const allFiles = getAllFiles()
       const imagesWithoutThumbs = allFiles.filter(

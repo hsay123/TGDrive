@@ -1,111 +1,48 @@
 import type { IpcMain } from 'electron'
-import os from 'os'
-import crypto from 'crypto'
-import { getSetting, setSetting } from '../../core/db/settings.db'
 import { ipcResult } from './helpers'
-
-export interface LicenseInfo {
-  valid: boolean
-  tier: 'free' | 'pro' | 'team'
-  email?: string
-  expiresAt?: number
-}
-
-type Tier = 'free' | 'pro' | 'team'
-
-function getMachineId(): string {
-  const raw = `${os.hostname()}-${os.userInfo().username}-${os.platform()}`
-  return crypto.createHash('sha256').update(raw).digest('hex')
-}
-
-function getLicenseServerUrl(): string {
-  return (
-    process.env.VITE_LICENSE_SERVER_URL ??
-    process.env.LICENSE_SERVER_URL ??
-    'https://api.televault.app'
-  )
-}
-
-async function validateWithServer(key: string): Promise<LicenseInfo> {
-  const response = await fetch(`${getLicenseServerUrl()}/validate-license`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      key,
-      machineId: getMachineId(),
-    }),
-  })
-
-  if (!response.ok) {
-    throw new Error(`License server error: ${response.status}`)
-  }
-
-  const data = (await response.json()) as {
-    valid: boolean
-    tier: Tier
-    email?: string
-    expiresAt?: number
-  }
-
-  return {
-    valid: data.valid,
-    tier: data.tier ?? 'free',
-    email: data.email,
-    expiresAt: data.expiresAt,
-  }
-}
-
-function isCacheValid(): boolean {
-  const cachedAt = getSetting('license_validated_at')
-  if (!cachedAt) {
-    return false
-  }
-  const age = Date.now() - parseInt(cachedAt, 10)
-  return age < 24 * 60 * 60 * 1000
-}
+import { getSetting, setSetting } from '../../core/db/settings.db'
+import { shell } from 'electron'
 
 export function registerLicenseIpc(ipcMain: IpcMain): void {
-  ipcMain.handle('license:validate', async (_event, key: string) =>
+  ipcMain.handle('system:openExternal', async (_event, url: string) =>
     ipcResult(async () => {
-      const info = await validateWithServer(key)
-      if (info.valid) {
-        setSetting('license_key', key)
-        setSetting('license_tier', info.tier)
-        setSetting('license_validated_at', String(Date.now()))
-        if (info.expiresAt) {
-          setSetting('license_expires_at', String(info.expiresAt))
-        }
-      }
-      return info
+      await shell.openExternal(url)
     })
   )
 
-  ipcMain.handle('license:getTier', async () =>
+  ipcMain.handle('system:saveApiCredentials', async (_event, apiId: string, apiHash: string) =>
     ipcResult(async () => {
-      const key = getSetting('license_key')
-      if (!key) {
-        return 'free' as Tier
+      if (!apiId?.trim() || !apiHash?.trim()) {
+        throw new Error('Both API ID and Hash are required')
       }
 
-      if (isCacheValid()) {
-        const cached = getSetting('license_tier') as Tier | null
-        if (cached === 'pro' || cached === 'team') {
-          return cached
-        }
-      }
+      // 1. Save FIRST — always, before anything else
+      const trimId = apiId.trim()
+      const trimHash = apiHash.trim()
+      setSetting('telegram_api_id', trimId)
+      setSetting('telegram_api_hash', trimHash)
+      console.log('[setup] Saved credentials — apiId:', trimId, '| hash length:', trimHash.length)
+      console.log('[setup] Verify read-back:', getSetting('telegram_api_id'))
 
+      // 2. Reinit client — non-fatal, login page will handle client init
       try {
-        const info = await validateWithServer(key)
-        if (info.valid) {
-          setSetting('license_tier', info.tier)
-          setSetting('license_validated_at', String(Date.now()))
-          return info.tier
-        }
-      } catch (error) {
-        console.error('[license] getTier validation error:', error)
+        const { reinitClient } = await import('../../core/telegram/client')
+        await reinitClient()
+        console.log('[setup] Client reinitialized')
+      } catch (err) {
+        console.warn('[setup] reinitClient failed (non-fatal):', err)
+        // Don't throw — credentials are saved, sendCode will lazily init the client
       }
+    })
+  )
 
-      return 'free' as Tier
+  ipcMain.handle('system:hasApiCredentials', async () =>
+    ipcResult(() => {
+      const apiId = getSetting('telegram_api_id')
+      const apiHash = getSetting('telegram_api_hash')
+      const has = !!(apiId && apiHash)
+      console.log('[setup] hasApiCredentials check:', has, '(apiId:', apiId, ')')
+      return has
     })
   )
 }

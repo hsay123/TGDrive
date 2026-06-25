@@ -26,8 +26,14 @@ const televault: TeleVaultAPI = {
     rename: (fileId, newName) =>
       ipcRenderer.invoke('files:rename', fileId, newName),
     restore: (trashId) => ipcRenderer.invoke('files:restore', trashId),
+    copyMultiple: (ids, destPath) => ipcRenderer.invoke('files:copyMultiple', ids, destPath),
     search: (query) => ipcRenderer.invoke('files:search', query),
+    recent: (limit) => ipcRenderer.invoke('files:recent', limit),
+    toggleStar: (id) => ipcRenderer.invoke('files:toggleStar', id),
+    starred: () => ipcRenderer.invoke('files:starred'),
+    shareLink: (fileId) => ipcRenderer.invoke('files:shareLink', fileId),
     getVersions: (fileId) => ipcRenderer.invoke('files:versions', fileId),
+    restoreVersion: (versionId) => ipcRenderer.invoke('files:restoreVersion', versionId),
     getTrash: () => ipcRenderer.invoke('files:trash'),
     downloadToTemp: (fileId) => ipcRenderer.invoke('files:downloadToTemp', fileId),
     readLocalFile: (filePath) => ipcRenderer.invoke('files:readLocalFile', filePath),
@@ -70,10 +76,6 @@ const televault: TeleVaultAPI = {
     getAll: () => ipcRenderer.invoke('settings:getAll'),
     getKeyFingerprint: () => ipcRenderer.invoke('settings:getKeyFingerprint'),
   },
-  license: {
-    validate: (key) => ipcRenderer.invoke('license:validate', key),
-    getTier: () => ipcRenderer.invoke('license:getTier'),
-  },
   system: {
     openFilePicker: () => ipcRenderer.invoke('system:openFilePicker'),
     openFolderPicker: () => ipcRenderer.invoke('system:openFolderPicker'),
@@ -82,6 +84,10 @@ const televault: TeleVaultAPI = {
     getAppVersion: () => ipcRenderer.invoke('system:getAppVersion'),
     getChannelStatus: () => ipcRenderer.invoke('system:getChannelStatus'),
     initializeChannels: () => ipcRenderer.invoke('system:initializeChannels'),
+    openExternal: (url) => ipcRenderer.invoke('system:openExternal', url),
+    saveApiCredentials: (apiId, apiHash) =>
+      ipcRenderer.invoke('system:saveApiCredentials', apiId, apiHash),
+    hasApiCredentials: () => ipcRenderer.invoke('system:hasApiCredentials'),
   },
   updater: {
     install: () => ipcRenderer.invoke('updater:install'),

@@ -1,63 +1,97 @@
 import fs from 'fs'
 import path from 'path'
-import os from 'os'
+import { app } from 'electron'
 import { pipeline } from 'stream/promises'
 import { v4 as uuidv4 } from 'uuid'
 
-export const MAX_CHUNK_SIZE = 1.9 * 1024 * 1024 * 1024
+// 512 MB — fast enough, small enough to retry quickly on failure
+export const CHUNK_SIZE = 512 * 1024 * 1024
 
+// Keep for backward-compat; same value
+export const MAX_CHUNK_SIZE = CHUNK_SIZE
+
+/** Lazy chunk descriptor — no disk writes until createTempFile() is called */
+export interface ChunkStream {
+  index: number
+  start: number
+  end: number    // inclusive
+  size: number
+  /**
+   * Write this chunk to a temp file and return its path.
+   * Caller is responsible for deleting the file after upload.
+   */
+  createTempFile: () => Promise<string>
+}
+
+/** Legacy shape used by downloader's assembleChunks */
 export interface ChunkInfo {
   index: number
   path: string
   size: number
 }
 
-export function needsChunkingBySize(sizeBytes: number): boolean {
-  return sizeBytes > MAX_CHUNK_SIZE
+// ─── Upload-side: one temp chunk at a time ─────────────────────────────────
+
+/**
+ * Return descriptors for each 512 MB chunk of the file.
+ * No data is read until createTempFile() is called, and only ONE chunk
+ * is ever on disk at a time (caller writes → uploads → deletes before next).
+ */
+export function getChunks(filePath: string): ChunkStream[] {
+  const fileSize = fs.statSync(filePath).size
+  const tempBase = path.join(app.getPath('userData'), 'chunks-temp')
+
+  if (fileSize <= CHUNK_SIZE) {
+    // Single-chunk: no temp file needed — we return the original path
+    return [{
+      index: 0,
+      start: 0,
+      end: fileSize - 1,
+      size: fileSize,
+      createTempFile: async () => filePath,   // use original, no copy
+    }]
+  }
+
+  const chunks: ChunkStream[] = []
+  let index = 0
+  let start = 0
+
+  while (start < fileSize) {
+    const end = Math.min(start + CHUNK_SIZE, fileSize) - 1
+    const size = end - start + 1
+    const s = start  // capture for closure
+
+    chunks.push({
+      index,
+      start: s,
+      end,
+      size,
+      createTempFile: async () => {
+        await fs.promises.mkdir(tempBase, { recursive: true })
+        const tmpPath = path.join(tempBase, `chunk-${uuidv4()}`)
+        const read = fs.createReadStream(filePath, { start: s, end })
+        const write = fs.createWriteStream(tmpPath)
+        await pipeline(read, write)
+        return tmpPath
+      },
+    })
+
+    start += CHUNK_SIZE
+    index++
+  }
+
+  return chunks
 }
 
 export function needsChunking(filePath: string): boolean {
-  const stat = fs.statSync(filePath)
-  return needsChunkingBySize(stat.size)
+  return fs.statSync(filePath).size > CHUNK_SIZE
 }
 
-export async function splitFile(filePath: string): Promise<ChunkInfo[]> {
-  try {
-    const stat = fs.statSync(filePath)
-    const fileSize = stat.size
-
-    if (!needsChunkingBySize(fileSize)) {
-      return [{ index: 0, path: filePath, size: fileSize }]
-    }
-
-    const tempDir = path.join(os.tmpdir(), `televault-chunks-${uuidv4()}`)
-    fs.mkdirSync(tempDir, { recursive: true })
-
-    const chunks: ChunkInfo[] = []
-    let offset = 0
-    let index = 0
-
-    while (offset < fileSize) {
-      const chunkSize = Math.min(MAX_CHUNK_SIZE, fileSize - offset)
-      const chunkPath = path.join(tempDir, `chunk-${index}`)
-      const readStream = fs.createReadStream(filePath, {
-        start: offset,
-        end: offset + chunkSize - 1,
-      })
-      const writeStream = fs.createWriteStream(chunkPath)
-      await pipeline(readStream, writeStream)
-
-      chunks.push({ index, path: chunkPath, size: chunkSize })
-      offset += chunkSize
-      index++
-    }
-
-    return chunks
-  } catch (error) {
-    console.error('[chunker] splitFile error:', error)
-    throw error
-  }
+export function needsChunkingBySize(sizeBytes: number): boolean {
+  return sizeBytes > CHUNK_SIZE
 }
+
+// ─── Download-side: assemble downloaded chunk files into final file ─────────
 
 export async function assembleChunks(
   chunks: ChunkInfo[],
@@ -86,27 +120,6 @@ export async function assembleChunks(
     })
   } catch (error) {
     console.error('[chunker] assembleChunks error:', error)
-    throw error
-  }
-}
-
-export async function cleanupChunks(chunks: ChunkInfo[]): Promise<void> {
-  try {
-    const tempDirs = new Set<string>()
-
-    for (const chunk of chunks) {
-      const dir = path.dirname(chunk.path)
-      const tempRoot = os.tmpdir()
-      if (dir.startsWith(tempRoot) && dir.includes('televault-chunks-')) {
-        tempDirs.add(dir)
-      }
-    }
-
-    for (const dir of tempDirs) {
-      await fs.promises.rm(dir, { recursive: true, force: true })
-    }
-  } catch (error) {
-    console.error('[chunker] cleanupChunks error:', error)
     throw error
   }
 }

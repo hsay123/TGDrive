@@ -20,6 +20,7 @@ import clsx from 'clsx'
 
 export function Toolbar() {
   const currentPath = useFilesStore((s) => s.currentPath)
+  const currentView = useFilesStore((s) => s.currentView)
   const setPath = useFilesStore((s) => s.setPath)
   const searchQuery = useUIStore((s) => s.searchQuery)
   const setSearchQuery = useUIStore((s) => s.setSearchQuery)
@@ -98,35 +99,57 @@ export function Toolbar() {
         >
           All Files
         </button>
-        {breadcrumbs.length > 4 && (
+        {currentView === 'recent' && (
           <span className="flex items-center gap-1 flex-shrink-0">
             <ChevronRight className="h-3.5 w-3.5 text-gray-600" />
-            <span className="text-gray-600">…</span>
+            <span className="font-medium text-gray-200">Recent</span>
           </span>
         )}
-        {displayCrumbs.map((crumb, i) => {
-          if (crumb === null) return null
-          const allCrumbs = breadcrumbs
-          const visibleStart = breadcrumbs.length > 4 ? breadcrumbs.length - 2 : 0
-          const idx = visibleStart + i - (breadcrumbs.length > 4 ? 1 : 0)
-          const path = '/' + allCrumbs.slice(0, idx + 1).join('/')
-          const isLast = i === displayCrumbs.filter(Boolean).length - 1 + (breadcrumbs.length > 4 ? 1 : 0)
-          return (
-            <span key={path} className="flex items-center gap-1 min-w-0 flex-shrink-0">
-              <ChevronRight className="h-3.5 w-3.5 text-gray-600 flex-shrink-0" />
-              {isLast ? (
-                <span className="truncate font-medium text-gray-200 max-w-[120px]">{crumb}</span>
-              ) : (
-                <button
-                  className="truncate hover:text-gray-200 transition-colors duration-150 max-w-[100px]"
-                  onClick={() => setPath(path)}
-                >
-                  {crumb}
-                </button>
-              )}
-            </span>
-          )
-        })}
+        {currentView === 'starred' && (
+          <span className="flex items-center gap-1 flex-shrink-0">
+            <ChevronRight className="h-3.5 w-3.5 text-gray-600" />
+            <span className="font-medium text-gray-200">Starred</span>
+          </span>
+        )}
+        {currentView === 'trash' && (
+          <span className="flex items-center gap-1 flex-shrink-0">
+            <ChevronRight className="h-3.5 w-3.5 text-gray-600" />
+            <span className="font-medium text-gray-200">Trash</span>
+          </span>
+        )}
+        {currentView === 'drive' && (
+          <>
+            {breadcrumbs.length > 4 && (
+              <span className="flex items-center gap-1 flex-shrink-0">
+                <ChevronRight className="h-3.5 w-3.5 text-gray-600" />
+                <span className="text-gray-600">…</span>
+              </span>
+            )}
+            {displayCrumbs.map((crumb, i) => {
+              if (crumb === null) return null
+              const allCrumbs = breadcrumbs
+              const visibleStart = breadcrumbs.length > 4 ? breadcrumbs.length - 2 : 0
+              const idx = visibleStart + i - (breadcrumbs.length > 4 ? 1 : 0)
+              const path = '/' + allCrumbs.slice(0, idx + 1).join('/')
+              const isLast = i === displayCrumbs.filter(Boolean).length - 1 + (breadcrumbs.length > 4 ? 1 : 0)
+              return (
+                <span key={path} className="flex items-center gap-1 min-w-0 flex-shrink-0">
+                  <ChevronRight className="h-3.5 w-3.5 text-gray-600 flex-shrink-0" />
+                  {isLast ? (
+                    <span className="truncate font-medium text-gray-200 max-w-[120px]">{crumb}</span>
+                  ) : (
+                    <button
+                      className="truncate hover:text-gray-200 transition-colors duration-150 max-w-[100px]"
+                      onClick={() => setPath(path)}
+                    >
+                      {crumb}
+                    </button>
+                  )}
+                </span>
+              )
+            })}
+          </>
+        )}
       </nav>
 
       {/* Right side actions */}

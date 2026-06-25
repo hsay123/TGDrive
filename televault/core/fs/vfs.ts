@@ -5,8 +5,9 @@ import {
   getFolderByPath,
   getChildFolders,
   deleteFolder as deleteFolderRecord,
-  updateFolder,
   getFolderTree,
+  renameFolder as dbRenameFolder,
+  moveFolder as dbMoveFolder,
   type FolderTreeNode,
 } from '../db/folders.db'
 import {
@@ -14,8 +15,11 @@ import {
   getFileById,
   softDeleteFile,
   moveFile,
-  updateFile,
   searchFiles as dbSearchFiles,
+  getRecentFiles as dbGetRecentFiles,
+  getStarredFiles as dbGetStarredFiles,
+  toggleStar as dbToggleStar,
+  renameFile as dbRenameFile,
 } from '../db/files.db'
 import { restoreFromTrash, trashFolderContents, permanentlyDeleteTrashEntry } from '../db/trash.db'
 import { getSetting, setSetting } from '../db/settings.db'
@@ -26,7 +30,6 @@ import {
   joinPath,
   getParentPath,
   getNameFromPath,
-  updateDescendantPaths,
 } from './tree'
 
 export interface VFSFile {
@@ -43,6 +46,7 @@ export interface VFSFile {
   uploadedAt: number
   updatedAt: number
   thumbnailPath: string | null
+  starred: number
 }
 
 export interface VFSFolder {
@@ -74,6 +78,7 @@ function mapFile(file: import('../db/schema').File): VFSFile {
     uploadedAt: file.uploaded_at,
     updatedAt: file.updated_at,
     thumbnailPath: file.thumbnail_path,
+    starred: file.starred ?? 0,
   }
 }
 
@@ -233,22 +238,8 @@ export async function renameFile(
   fileId: string,
   newName: string
 ): Promise<void> {
-  const file = getFileById(fileId)
-  if (!file) {
-    throw new Error(`File not found: ${fileId}`)
-  }
-
-  const folder = getFolderById(file.folder_id)
-  if (!folder) {
-    throw new Error(`Parent folder not found for file: ${fileId}`)
-  }
-
-  const newPath = joinPath(folder.path, newName)
-  updateFile(fileId, {
-    name: newName,
-    path: newPath,
-    updated_at: Date.now(),
-  })
+  // Delegates to DB-level rename which has the collision check
+  dbRenameFile(fileId, newName)
 }
 
 export async function restoreFile(trashId: string): Promise<void> {
@@ -257,6 +248,18 @@ export async function restoreFile(trashId: string): Promise<void> {
 
 export async function searchFiles(query: string): Promise<VFSFile[]> {
   return dbSearchFiles(query).map(mapFile)
+}
+
+export async function getRecentFiles(limit = 50): Promise<VFSFile[]> {
+  return dbGetRecentFiles(limit).map(mapFile)
+}
+
+export async function getStarredFiles(): Promise<VFSFile[]> {
+  return dbGetStarredFiles().map(mapFile)
+}
+
+export async function toggleStar(fileId: string): Promise<boolean> {
+  return dbToggleStar(fileId)
 }
 
 export async function getTree(): Promise<VFSFolder> {
@@ -292,47 +295,14 @@ export async function renameFolder(
   folderId: string,
   newName: string
 ): Promise<void> {
-  const folder = getFolderById(folderId)
-  if (!folder) {
-    throw new Error(`Folder not found: ${folderId}`)
-  }
-  if (folder.path === '/') {
-    throw new Error('Cannot rename root folder')
-  }
-
-  const parentPath = getParentPath(folder.path)
-  const newPath = joinPath(parentPath, newName)
-  updateDescendantPaths(folder.path, newPath)
-  updateFolder(folderId, {
-    name: newName,
-    path: newPath,
-    updated_at: Date.now(),
-  })
+  // Delegates to DB-level rename which handles descendant rewrite atomically
+  dbRenameFolder(folderId, newName)
 }
 
 export async function moveFolder(
   folderId: string,
   newParentPath: string
 ): Promise<void> {
-  const folder = getFolderById(folderId)
-  if (!folder) {
-    throw new Error(`Folder not found: ${folderId}`)
-  }
-  if (folder.path === '/') {
-    throw new Error('Cannot move root folder')
-  }
-
-  const parentPath = normalizePath(newParentPath)
-  const parent = getFolderByPath(parentPath)
-  if (!parent) {
-    throw new Error(`Parent folder not found: ${parentPath}`)
-  }
-
-  const newPath = joinPath(parentPath, folder.name)
-  updateDescendantPaths(folder.path, newPath)
-  updateFolder(folderId, {
-    parent_id: parent.id,
-    path: newPath,
-    updated_at: Date.now(),
-  })
+  // Delegates to DB-level move which handles descendant rewrite atomically
+  dbMoveFolder(folderId, normalizePath(newParentPath))
 }

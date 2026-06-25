@@ -74,4 +74,38 @@ export function runMigrations(db: Database.Database): void {
     apply()
     console.log('[migration 2] Ensured file_data column exists on trash table')
   }
+
+  // Migration 3: add starred column to files table
+  if (!applied.has(3)) {
+    const apply = db.transaction(() => {
+      ensureColumn(db, 'files', 'starred', 'INTEGER NOT NULL DEFAULT 0')
+      db.prepare(
+        'INSERT INTO schema_migrations (version, applied_at) VALUES (?, ?)'
+      ).run(3, Date.now())
+    })
+    apply()
+    console.log('[migration 3] Ensured starred column exists on files table')
+  }
+
+  // Migration 4: add version_chunks table
+  if (!applied.has(4)) {
+    const apply = db.transaction(() => {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS version_chunks (
+          id          TEXT PRIMARY KEY,
+          version_id  TEXT NOT NULL,
+          chunk_index INTEGER NOT NULL,
+          message_id  INTEGER NOT NULL,
+          channel_id  TEXT NOT NULL,
+          size        INTEGER NOT NULL,
+          FOREIGN KEY (version_id) REFERENCES versions(id) ON DELETE CASCADE
+        );
+      `)
+      db.prepare(
+        'INSERT INTO schema_migrations (version, applied_at) VALUES (?, ?)'
+      ).run(4, Date.now())
+    })
+    apply()
+    console.log('[migration 4] Created version_chunks table')
+  }
 }

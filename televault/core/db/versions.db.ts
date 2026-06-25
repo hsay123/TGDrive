@@ -1,6 +1,8 @@
 import { v4 as uuidv4 } from 'uuid'
 import { getDb } from './db'
 import type { Version } from './schema'
+import { getFileById } from './files.db'
+import { getChunksByFileId } from './chunks.db'
 
 export function createVersion(data: Omit<Version, 'id'>): Version {
   const db = getDb()
@@ -55,4 +57,38 @@ export function getNextVersionNum(fileId: string): number {
     )
     .get(fileId) as { max_version: number }
   return row.max_version + 1
+}
+
+export function archiveCurrentVersion(fileId: string, label?: string): string {
+  const db = getDb()
+  const file = getFileById(fileId)
+  if (!file) throw new Error('File not found')
+  const chunks = getChunksByFileId(fileId)
+  const versionNum = getNextVersionNum(fileId)
+
+  const version = createVersion({ file_id: fileId, version_num: versionNum, size: file.size, uploaded_at: file.updated_at, label: label ?? null })
+
+  for (const c of chunks) {
+    db.prepare('INSERT INTO version_chunks (id, version_id, chunk_index, message_id, channel_id, size) VALUES (?, ?, ?, ?, ?, ?)')
+      .run(uuidv4(), version.id, c.chunk_index, c.message_id, c.channel_id, c.size)
+  }
+  return version.id
+}
+
+export function restoreVersion(versionId: string): void {
+  const db = getDb()
+  const version = db.prepare('SELECT * FROM versions WHERE id = ?').get(versionId) as Version
+  if (!version) throw new Error('Version not found')
+  const versionChunks = db.prepare('SELECT * FROM version_chunks WHERE version_id = ?').all(versionId) as any[]
+
+  // Archive current as "before restore"
+  archiveCurrentVersion(version.file_id, 'before restore')
+
+  db.prepare('DELETE FROM chunks WHERE file_id = ?').run(version.file_id)
+  for (const vc of versionChunks) {
+    db.prepare('INSERT INTO chunks (id, file_id, chunk_index, message_id, channel_id, size) VALUES (?, ?, ?, ?, ?, ?)')
+      .run(uuidv4(), version.file_id, vc.chunk_index, vc.message_id, vc.channel_id, vc.size)
+  }
+  db.prepare('UPDATE files SET size = ?, updated_at = ? WHERE id = ?').run(version.size, Date.now(), version.file_id)
+  db.prepare('DELETE FROM versions WHERE id = ?').run(versionId)
 }

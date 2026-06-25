@@ -155,3 +155,115 @@ export function getFolderTree(): FolderTreeNode[] {
 
   return roots
 }
+
+/**
+ * Rename a folder. Updates all descendant folder and file paths in a transaction.
+ */
+export function renameFolder(id: string, newName: string): void {
+  const db = getDb()
+  const folder = getFolderById(id)
+  if (!folder) throw new Error(`Folder not found: ${id}`)
+  if (folder.path === '/') throw new Error('Cannot rename root folder')
+
+  // Parent path: everything before the last '/'
+  const lastSlash = folder.path.lastIndexOf('/')
+  const parentPath = lastSlash > 0 ? folder.path.substring(0, lastSlash) : ''
+  const newPath = `${parentPath}/${newName}`
+
+  // Sibling collision check
+  const existing = db
+    .prepare('SELECT id FROM folders WHERE path = ? AND id != ?')
+    .get(newPath, id)
+  if (existing) throw new Error(`A folder named "${newName}" already exists here`)
+
+  const oldPath = folder.path
+
+  const tx = db.transaction(() => {
+    // Rename this folder
+    db.prepare(
+      'UPDATE folders SET name = ?, path = ?, updated_at = ? WHERE id = ?'
+    ).run(newName, newPath, Date.now(), id)
+
+    // Rewrite all descendant folder paths
+    const descFolders = db
+      .prepare("SELECT id, path FROM folders WHERE path LIKE ?")
+      .all(`${oldPath}/%`) as { id: string; path: string }[]
+    for (const d of descFolders) {
+      db.prepare('UPDATE folders SET path = ? WHERE id = ?').run(
+        newPath + d.path.substring(oldPath.length),
+        d.id
+      )
+    }
+
+    // Rewrite all file paths inside this folder and descendants
+    const descFiles = db
+      .prepare("SELECT id, path FROM files WHERE path LIKE ?")
+      .all(`${oldPath}/%`) as { id: string; path: string }[]
+    for (const f of descFiles) {
+      db.prepare('UPDATE files SET path = ? WHERE id = ?').run(
+        newPath + f.path.substring(oldPath.length),
+        f.id
+      )
+    }
+  })
+  tx()
+}
+
+/**
+ * Move a folder to a new parent path. Updates parent_id, path, and all
+ * descendant paths in a transaction. Guards against moving into own subtree.
+ */
+export function moveFolder(id: string, newParentPath: string): void {
+  const db = getDb()
+  const folder = getFolderById(id)
+  if (!folder) throw new Error(`Folder not found: ${id}`)
+  if (folder.path === '/') throw new Error('Cannot move root folder')
+
+  const targetParent =
+    newParentPath === '/' ? null : (db
+      .prepare('SELECT * FROM folders WHERE path = ?')
+      .get(newParentPath) as { id: string; path: string } | undefined)
+  if (newParentPath !== '/' && !targetParent) {
+    throw new Error(`Destination folder not found: ${newParentPath}`)
+  }
+
+  const folderName = folder.path.substring(folder.path.lastIndexOf('/') + 1)
+  const newPath =
+    newParentPath === '/' ? `/${folderName}` : `${newParentPath}/${folderName}`
+
+  if (newPath === folder.path) return // no-op
+
+  // Guard: cannot move into own subtree
+  if (newPath.startsWith(folder.path + '/')) {
+    throw new Error('Cannot move a folder into its own subfolder')
+  }
+
+  const oldPath = folder.path
+
+  const tx = db.transaction(() => {
+    db.prepare(
+      'UPDATE folders SET parent_id = ?, path = ?, updated_at = ? WHERE id = ?'
+    ).run(targetParent?.id ?? null, newPath, Date.now(), id)
+
+    const descFolders = db
+      .prepare("SELECT id, path FROM folders WHERE path LIKE ?")
+      .all(`${oldPath}/%`) as { id: string; path: string }[]
+    for (const d of descFolders) {
+      db.prepare('UPDATE folders SET path = ? WHERE id = ?').run(
+        newPath + d.path.substring(oldPath.length),
+        d.id
+      )
+    }
+
+    const descFiles = db
+      .prepare("SELECT id, path FROM files WHERE path LIKE ?")
+      .all(`${oldPath}/%`) as { id: string; path: string }[]
+    for (const f of descFiles) {
+      db.prepare('UPDATE files SET path = ? WHERE id = ?').run(
+        newPath + f.path.substring(oldPath.length),
+        f.id
+      )
+    }
+  })
+  tx()
+}

@@ -97,6 +97,7 @@ export interface File {
   uploaded_at: number
   updated_at: number
   thumbnail_path: string | null
+  starred: number
 }
 
 export interface Chunk {

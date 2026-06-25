@@ -1,7 +1,6 @@
 import { Api, errors } from 'telegram'
 import {
   destroyClient,
-  ensureClientFromSettings,
   getApiCredentialsExport,
   getClient,
   getSetting,
@@ -50,11 +49,19 @@ export async function sendCode(
   forceSMS = false
 ): Promise<{ phoneCodeHash: string; isCodeViaApp: boolean }> {
   try {
-    await ensureClientFromSettings()
-    const client = getClient()
-    if (!client.connected) {
-      await client.connect()
+    // Ensure client is initialized — lazily init if coming fresh from Setup
+    // where the client may not have been initialized yet.
+    let client
+    try {
+      client = getClient()
+      if (!client.connected) await client.connect()
+    } catch {
+      console.log('[auth] Client not initialized, lazy-initializing from saved session...')
+      const savedSession = getSetting('telegram_session') ?? ''
+      await initClient(savedSession)
+      client = getClient()
     }
+
     const credentials = getApiCredentialsExport()
     const result = await client.sendCode(credentials, phone, forceSMS)
     // Persist the session immediately after sendCode so any DC migration

@@ -81,6 +81,7 @@ export function restoreFromTrash(trashId: string): void {
       uploaded_at: fileData.uploaded_at,
       updated_at: Date.now(),
       thumbnail_path: fileData.thumbnail_path,
+      starred: 0,
     })
     db.prepare('DELETE FROM trash WHERE id = ?').run(trashId)
   })

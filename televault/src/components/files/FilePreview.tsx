@@ -10,7 +10,6 @@ import { Download, Trash2, Music } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { useFilesStore } from '../../store/files.store'
 import { useUIStore } from '../../store/ui.store'
-import { GatedFeature } from '../shared/GatedFeature'
 
 interface FilePreviewProps {
   entry: VFSEntry | null
@@ -216,9 +215,7 @@ export function FilePreview({ entry, onClose }: FilePreviewProps) {
           Delete
         </Button>
       </div>
-      <GatedFeature feature="sharing" inline>
         <Button variant="ghost" size="sm">Share</Button>
-      </GatedFeature>
     </div>
   )
 

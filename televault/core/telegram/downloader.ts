@@ -1,6 +1,6 @@
 import fs from 'fs'
 import path from 'path'
-import os from 'os'
+import { app } from 'electron'
 import { v4 as uuidv4 } from 'uuid'
 import { getClient, getEntityCacheSize } from './client'
 import { getChannelEntity, type ChannelPurpose } from './channels'
@@ -129,7 +129,9 @@ export async function downloadFile(
       throw new Error(`No chunks found for file: ${fileId}`)
     }
 
-    const tempDir = path.join(os.tmpdir(), `televault-dl-${uuidv4()}`)
+    // Use userData so download temp files never land in /tmp (avoids ENOSPC on small /tmp)
+    const dlCacheDir = path.join(app.getPath('userData'), 'download-cache')
+    const tempDir = path.join(dlCacheDir, `televault-dl-${uuidv4()}`)
     fs.mkdirSync(tempDir, { recursive: true })
 
     let downloadedBytes = 0

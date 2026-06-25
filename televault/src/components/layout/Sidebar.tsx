@@ -4,22 +4,22 @@ import { FolderTree } from '../folders/FolderTree'
 import { useAuthStore } from '../../store/auth.store'
 import { useFilesStore } from '../../store/files.store'
 import clsx from 'clsx'
-import toast from 'react-hot-toast'
 
 export function Sidebar() {
   const user = useAuthStore((s) => s.user)
   const location = useLocation()
-  const currentPath = useFilesStore((s) => s.currentPath)
-  const isTrashView = useFilesStore((s) => s.isTrashView)
+  const currentView = useFilesStore((s) => s.currentView)
   const setPath = useFilesStore((s) => s.setPath)
   const setTrashView = useFilesStore((s) => s.setTrashView)
+  const loadRecent = useFilesStore((s) => s.loadRecent)
+  const loadStarred = useFilesStore((s) => s.loadStarred)
 
   const navItems = [
     {
       id: 'all',
       label: 'All Files',
       Icon: HardDrive,
-      active: !isTrashView && currentPath === '/' && location.pathname === '/',
+      active: currentView === 'drive' && location.pathname === '/',
       onClick: () => {
         setTrashView(false)
         setPath('/')
@@ -29,21 +29,21 @@ export function Sidebar() {
       id: 'recent',
       label: 'Recent',
       Icon: Clock,
-      active: false,
-      onClick: () => toast('Recent files — coming soon'),
+      active: currentView === 'recent',
+      onClick: () => loadRecent(),
     },
     {
       id: 'starred',
       label: 'Starred',
       Icon: Star,
-      active: false,
-      onClick: () => toast('Starred files — coming soon'),
+      active: currentView === 'starred',
+      onClick: () => loadStarred(),
     },
     {
       id: 'trash',
       label: 'Trash',
       Icon: Trash2,
-      active: isTrashView,
+      active: currentView === 'trash',
       onClick: async () => {
         setTrashView(true)
         await useFilesStore.getState().refreshFolder()

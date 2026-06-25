@@ -1,5 +1,10 @@
 import { create } from 'zustand'
 
+interface MoveToModal {
+  entryIds: string[]
+  entryType: 'file' | 'folder'
+}
+
 interface UIStore {
   viewMode: 'grid' | 'list'
   sidebarOpen: boolean
@@ -7,7 +12,9 @@ interface UIStore {
   searchQuery: string
   previewEntryId: string | null
   isDraggingOver: boolean
-  showUpgradeModal: boolean
+  moveToModal: MoveToModal | null
+  versionHistoryEntryId: string | null
+  clipboard: { entryIds: string[]; mode: 'copy' | 'cut' } | null
   setViewMode: (mode: 'grid' | 'list') => void
   toggleSidebar: () => void
   openModal: (name: string) => void
@@ -15,8 +22,10 @@ interface UIStore {
   setSearchQuery: (q: string) => void
   setPreviewEntryId: (id: string | null) => void
   setDraggingOver: (v: boolean) => void
-  openUpgradeModal: () => void
-  closeUpgradeModal: () => void
+  openMoveToModal: (entryIds: string[], entryType: 'file' | 'folder') => void
+  closeMoveToModal: () => void
+  setVersionHistoryEntryId: (id: string | null) => void
+  setClipboard: (c: UIStore['clipboard']) => void
 }
 
 export const useUIStore = create<UIStore>((set) => ({
@@ -26,7 +35,9 @@ export const useUIStore = create<UIStore>((set) => ({
   searchQuery: '',
   previewEntryId: null,
   isDraggingOver: false,
-  showUpgradeModal: false,
+  moveToModal: null,
+  versionHistoryEntryId: null,
+  clipboard: null,
 
   setViewMode: (mode) => set({ viewMode: mode }),
   toggleSidebar: () => set((s) => ({ sidebarOpen: !s.sidebarOpen })),
@@ -35,6 +46,8 @@ export const useUIStore = create<UIStore>((set) => ({
   setSearchQuery: (q) => set({ searchQuery: q }),
   setPreviewEntryId: (id) => set({ previewEntryId: id }),
   setDraggingOver: (v) => set({ isDraggingOver: v }),
-  openUpgradeModal: () => set({ showUpgradeModal: true }),
-  closeUpgradeModal: () => set({ showUpgradeModal: false }),
+  openMoveToModal: (entryIds, entryType) => set({ moveToModal: { entryIds, entryType } }),
+  closeMoveToModal: () => set({ moveToModal: null }),
+  setVersionHistoryEntryId: (id) => set({ versionHistoryEntryId: id }),
+  setClipboard: (c) => set({ clipboard: c }),
 }))

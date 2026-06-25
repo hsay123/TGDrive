@@ -16,11 +16,28 @@ export interface TGUser {
 let _client: TelegramClient | null = null
 let _session: StringSession | null = null
 
+/**
+ * Read API credentials from the settings DB first (user-provided via Setup page),
+ * with .env as optional dev-time fallback.
+ */
 function getApiCredentials(): { apiId: number; apiHash: string } {
-  const apiId = parseInt(process.env.TELEGRAM_API_ID ?? '', 10)
-  const apiHash = process.env.TELEGRAM_API_HASH ?? ''
+  const db = getDb()
+  const getSetting = (key: string): string | undefined => {
+    const row = db.prepare('SELECT value FROM settings WHERE key = ?').get(key) as
+      | { value: string }
+      | undefined
+    return row?.value
+  }
+
+  const apiId = parseInt(
+    getSetting('telegram_api_id') ?? process.env.TELEGRAM_API_ID ?? '',
+    10
+  )
+  const apiHash =
+    getSetting('telegram_api_hash') ?? process.env.TELEGRAM_API_HASH ?? ''
+
   if (!apiId || !apiHash) {
-    throw new Error('TELEGRAM_API_ID and TELEGRAM_API_HASH must be set in environment')
+    throw new Error('Telegram API credentials not configured. Please complete setup.')
   }
   return { apiId, apiHash }
 }
@@ -73,7 +90,6 @@ export async function initClient(sessionString: string): Promise<TelegramClient>
     await _client.connect()
     // Warm the entity cache so PeerUser/PeerChannel lookups work without
     // triggering "Could not find input entity" on a cold session.
-    // Non-fatal if session is empty/stale — validity is checked in auth.ts.
     await warmEntityCache()
     console.log(
       '[client] entity cache size after warm-up:',
@@ -86,6 +102,15 @@ export async function initClient(sessionString: string): Promise<TelegramClient>
     await destroyClient()
     throw error
   }
+}
+
+/**
+ * Re-initialize client with new credentials (called after user saves API creds in Setup).
+ * Destroys any existing session so the new credentials take effect immediately.
+ */
+export async function reinitClient(): Promise<void> {
+  await destroyClient()
+  // Don't init a new client here — it will be lazily created on next auth:sendCode
 }
 
 /** Debug helper — gramjs EntityCache stores entries in a private cacheMap. */

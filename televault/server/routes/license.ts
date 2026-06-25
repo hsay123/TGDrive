@@ -11,9 +11,33 @@ const limiter = rateLimit({
   message: { error: 'Too many requests' },
 })
 
-// POST /api/license/validate
+// POST /api/activate
+// Body: { token: string, machineId: string }
+// Response: { valid: boolean, reason?: string }
+router.post('/activate', limiter, (req: Request, res: Response) => {
+  const { token, machineId } = req.body
+
+  if (!token || typeof token !== 'string') {
+    return res.status(400).json({ valid: false, reason: 'missing_token' })
+  }
+  if (!machineId || typeof machineId !== 'string') {
+    return res.status(400).json({ valid: false, reason: 'missing_machine_id' })
+  }
+
+  try {
+    // Reuse existing license validation — token IS the license key
+    const result = validateLicense(token.trim().toUpperCase(), machineId)
+    const ip = req.ip || 'unknown'
+    logValidation(token, machineId, result.valid ? 'success' : result.reason || 'invalid', ip)
+    return res.json({ valid: result.valid, reason: result.reason })
+  } catch (err) {
+    console.error('[license/activate] error:', err)
+    return res.status(500).json({ valid: false, reason: 'server_error' })
+  }
+})
+
+// POST /api/license/validate (legacy — kept for backward compat)
 // Body: { key: string, machineId: string }
-// Response: { valid: boolean, tier: string | null, expiresAt: number | null, reason?: string }
 router.post('/validate', limiter, (req: Request, res: Response) => {
   const { key, machineId } = req.body
 
@@ -36,8 +60,6 @@ router.post('/validate', limiter, (req: Request, res: Response) => {
 })
 
 // POST /api/license/deactivate-machine
-// Body: { key: string, machineId: string }
-// Allows users to free up a seat (e.g. old computer)
 router.post('/deactivate-machine', limiter, (req: Request, res: Response) => {
   const { key, machineId } = req.body
   if (!key || !machineId) return res.status(400).json({ error: 'Missing key or machineId' })

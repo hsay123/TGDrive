@@ -16,8 +16,8 @@ export function createFile(data: Omit<File, 'id'> & { id?: string }): File {
     `INSERT INTO files (
       id, folder_id, name, path, size, mime_type,
       is_encrypted, is_chunked, chunk_count,
-      uploaded_at, updated_at, thumbnail_path
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      uploaded_at, updated_at, thumbnail_path, starred
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
   ).run(
     file.id,
     file.folder_id,
@@ -30,7 +30,8 @@ export function createFile(data: Omit<File, 'id'> & { id?: string }): File {
     file.chunk_count,
     file.uploaded_at,
     file.updated_at,
-    file.thumbnail_path
+    file.thumbnail_path,
+    file.starred ?? 0
   )
 
   return file
@@ -187,4 +188,42 @@ export function softDeleteFile(id: string): void {
   })
 
   transaction()
+}
+
+export function toggleStar(id: string): boolean {
+  const db = getDb()
+  const file = getFileById(id)
+  if (!file) throw new Error(`File not found: ${id}`)
+  const newStarred = file.starred ? 0 : 1
+  db.prepare('UPDATE files SET starred = ? WHERE id = ?').run(newStarred, id)
+  return newStarred === 1
+}
+
+export function getStarredFiles(): File[] {
+  return getDb()
+    .prepare('SELECT * FROM files WHERE starred = 1 ORDER BY updated_at DESC')
+    .all() as File[]
+}
+
+/**
+ * Rename a file. Checks for name collision within the same folder path.
+ */
+export function renameFile(id: string, newName: string): void {
+  const db = getDb()
+  const file = getFileById(id)
+  if (!file) throw new Error(`File not found: ${id}`)
+
+  // Compute new path: same directory segment, new filename
+  const dir = file.path.substring(0, file.path.lastIndexOf('/'))
+  const newPath = `${dir}/${newName}`
+
+  // Collision check — another file at the same path
+  const existing = db
+    .prepare('SELECT id FROM files WHERE path = ? AND id != ?')
+    .get(newPath, id)
+  if (existing) throw new Error(`A file named "${newName}" already exists here`)
+
+  db.prepare(
+    'UPDATE files SET name = ?, path = ?, updated_at = ? WHERE id = ?'
+  ).run(newName, newPath, Date.now(), id)
 }

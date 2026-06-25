@@ -37,7 +37,9 @@ export function ContextMenu({ x, y, entry, onClose }: ContextMenuProps) {
   const ref = useRef<HTMLDivElement>(null)
   const isTrashView = useFilesStore((s) => s.isTrashView)
   const refreshFolder = useFilesStore((s) => s.refreshFolder)
+  const setRenamingId = useFilesStore((s) => s.setRenamingId)
   const setPreviewEntryId = useUIStore((s) => s.setPreviewEntryId)
+  const openMoveToModal = useUIStore((s) => s.openMoveToModal)
 
   useEffect(() => {
     const handleClick = (e: MouseEvent) => {
@@ -67,6 +69,7 @@ export function ContextMenu({ x, y, entry, onClose }: ContextMenuProps) {
   }
 
   const isFile = entry.type === 'file'
+  const isStarred = isFile && (entry as any).starred === 1
 
   const items: MenuItem[] = [
     {
@@ -95,35 +98,37 @@ export function ContextMenu({ x, y, entry, onClose }: ContextMenuProps) {
         }),
       dividerBefore: true,
     })
+  }
+
+  if (!isTrashView) {
     items.push({
       label: 'Rename',
       icon: <Pencil className="h-3.5 w-3.5" />,
       action: () => {
-        const name = prompt('New name:', entry.name)
-        if (name && name.trim()) {
-          run(async () => {
-            const result = await window.televault.files.rename(entry.id, name.trim())
-            if (!result.success) throw new Error(result.error)
-          })
-        }
+        setRenamingId(entry.id)
+        onClose()
       },
     })
     items.push({
       label: 'Move to…',
       icon: <FolderInput className="h-3.5 w-3.5" />,
+      action: () => {
+        openMoveToModal([entry.id], entry.type)
+        onClose()
+      },
+    })
+  }
+
+  if (isFile && !isTrashView) {
+    items.push({
+      label: isStarred ? 'Unstar' : 'Star',
+      icon: <Star className={clsx('h-3.5 w-3.5', isStarred && 'fill-yellow-400 text-yellow-400')} />,
       action: () =>
         run(async () => {
-          const result = await window.televault.system.openFolderPicker()
-          if (!result.success || !result.data) throw new Error(result.error)
-          const moveResult = await window.televault.files.move(entry.id, result.data)
-          if (!moveResult.success) throw new Error(moveResult.error)
+          const result = await window.televault.files.toggleStar(entry.id)
+          if (!result.success) throw new Error(result.error)
+          toast.success(result.data?.starred ? 'Starred' : 'Unstarred')
         }),
-    })
-    items.push({
-      label: 'Star',
-      icon: <Star className="h-3.5 w-3.5" />,
-      action: () => toast('Starred — coming soon'),
-      disabled: true,
       dividerBefore: true,
     })
     items.push({
@@ -135,8 +140,13 @@ export function ContextMenu({ x, y, entry, onClose }: ContextMenuProps) {
     items.push({
       label: 'Share Link',
       icon: <Share2 className="h-3.5 w-3.5" />,
-      action: () => toast('Share link — coming soon (Pro feature)'),
-      disabled: true,
+      action: () =>
+        run(async () => {
+          const result = await window.televault.files.shareLink(entry.id)
+          if (!result.success) throw new Error(result.error)
+          await navigator.clipboard.writeText(result.data!.url)
+          toast.success('Link copied! Note: only works for accounts with access to your TeleVault Telegram channels.')
+        }),
     })
   }
 
@@ -200,8 +210,8 @@ export function ContextMenu({ x, y, entry, onClose }: ContextMenuProps) {
               item.disabled
                 ? 'text-gray-600 cursor-not-allowed'
                 : item.danger
-                ? 'text-red-400 hover:bg-red-500/10 cursor-pointer'
-                : 'text-gray-200 hover:bg-gray-800 cursor-pointer',
+                  ? 'text-red-400 hover:bg-red-500/10 cursor-pointer'
+                  : 'text-gray-200 hover:bg-gray-800 cursor-pointer',
               'w-[calc(100%-8px)]'
             )}
             onClick={item.disabled ? undefined : item.action}

@@ -4,6 +4,13 @@ import { useFilesStore } from '../store/files.store'
 import { useTreeStore } from '../store/tree.store'
 import toast from 'react-hot-toast'
 
+function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`
+  if (bytes < 1024 ** 2) return `${(bytes / 1024).toFixed(1)} KB`
+  if (bytes < 1024 ** 3) return `${(bytes / 1024 ** 2).toFixed(1)} MB`
+  return `${(bytes / 1024 ** 3).toFixed(2)} GB`
+}
+
 export function useUpload() {
   const queue = useUploadStore((s) => s.queue)
   const markUploading = useUploadStore((s) => s.markUploading)
@@ -47,13 +54,12 @@ export function useUpload() {
             await refreshFolder()
             await loadTree()
           } else {
-            markError(item.id, result.error ?? 'Upload failed')
-            toast.error(result.error ?? 'Upload failed')
+            const errorMsg = result.error ?? 'Upload failed'
+            handleUploadError(errorMsg, item.id, markError)
           }
         } catch (error) {
           const message = error instanceof Error ? error.message : 'Upload failed'
-          markError(item.id, message)
-          toast.error(message)
+          handleUploadError(message, item.id, markError)
         } finally {
           processingRef.current.delete(item.id)
         }
@@ -64,4 +70,27 @@ export function useUpload() {
       processQueue()
     }
   }, [queue, markUploading, markDone, markError, refreshFolder, loadTree])
+}
+
+function handleUploadError(
+  message: string,
+  itemId: string,
+  markError: (id: string, err: string) => void,
+): void {
+  if (message.startsWith('DISK_FULL:')) {
+    try {
+      const info = JSON.parse(message.replace('DISK_FULL:', '')) as {
+        free: number
+        needed: number
+      }
+      const shortfall = formatBytes(info.needed - info.free)
+      const friendlyMsg = `Not enough disk space. Free up at least ${shortfall} and try again.`
+      markError(itemId, friendlyMsg)
+      toast.error(friendlyMsg, { duration: 6000 })
+      return
+    } catch { /* fall through */ }
+  }
+
+  markError(itemId, message)
+  toast.error(message)
 }

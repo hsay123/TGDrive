@@ -121,7 +121,7 @@ export default function Login() {
         firstName: result.data!.user.firstName,
         username: result.data!.user.username || null,
       })
-      navigate('/')
+      navigate('/drive', { replace: true })
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Verification failed'
       if (msg.includes('2FA') || msg.includes('SESSION_PASSWORD_NEEDED')) {
@@ -149,7 +149,7 @@ export default function Login() {
         firstName: result.data!.user.firstName,
         username: result.data!.user.username || null,
       })
-      navigate('/')
+      navigate('/drive', { replace: true })
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Wrong password')
     } finally {
