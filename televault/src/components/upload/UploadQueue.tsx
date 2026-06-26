@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import clsx from 'clsx'
+import { useDownloadStore } from '../../store/download.store'
 import { ChevronDown, Check, X, Loader2, Upload, Zap } from 'lucide-react'
 import { useUploadStore, type UploadItem } from '../../store/upload.store'
 import { ProgressBar } from './ProgressBar'
@@ -10,6 +11,7 @@ const statusColors = {
   uploading: 'text-violet-400',
   done: 'text-teal-400',
   error: 'text-red-400',
+  cancelled: 'text-gray-600',
 }
 
 const statusLabels = {
@@ -17,11 +19,13 @@ const statusLabels = {
   uploading: 'Uploading',
   done: 'Done',
   error: 'Failed',
+  cancelled: 'Cancelled',
 }
 
 // ── Formatters ────────────────────────────────────────────────────────────────
 
 function formatBytes(bytes: number): string {
+  if (!bytes || bytes <= 0) return '0 B'
   if (bytes < 1024) return `${bytes} B`
   if (bytes < 1024 ** 2) return `${(bytes / 1024).toFixed(1)} KB`
   if (bytes < 1024 ** 3) return `${(bytes / 1024 ** 2).toFixed(1)} MB`
@@ -119,12 +123,32 @@ function useUploadSpeed(item: UploadItem): {
 function UploadItemRow({ item }: { item: UploadItem }) {
   const { speed, bytesUploaded, eta } = useUploadSpeed(item)
   const isUploading = item.status === 'uploading'
+  const isActive = item.status === 'uploading' || item.status === 'queued'
+  const isCancelled = item.status === 'cancelled'
+
+  const handleCancel = async () => {
+    await window.televault.files.cancelUpload(item.id)
+    useUploadStore.getState().markCancelled(item.id)
+  }
+
+  if (item.status === 'done') {
+    return (
+      <div className="px-4 py-3">
+        <div className="flex items-center gap-2 py-2 px-1">
+          <div className="w-5 h-5 rounded-full bg-teal-500/20 flex items-center justify-center">
+            <Check size={12} className="text-teal-400" />
+          </div>
+          <span className="text-xs text-teal-400 truncate">{item.name}</span>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="px-4 py-3 space-y-2">
       {/* Name + status icon */}
       <div className="flex items-center justify-between gap-2">
-        <span className="flex-1 min-w-0 truncate text-sm text-gray-200">
+        <span className={clsx('flex-1 min-w-0 truncate text-sm', isCancelled ? 'line-through text-gray-600' : 'text-gray-200')}>
           {item.name}
         </span>
         <div className="flex items-center gap-1.5 flex-shrink-0">
@@ -134,6 +158,15 @@ function UploadItemRow({ item }: { item: UploadItem }) {
           {isUploading && <Loader2 className="h-3.5 w-3.5 text-violet-400 animate-spin" />}
           {item.status === 'done'  && <Check className="h-3.5 w-3.5 text-teal-400" />}
           {item.status === 'error' && <X     className="h-3.5 w-3.5 text-red-400"  />}
+          {isActive && (
+            <button
+              onClick={handleCancel}
+              className="rounded p-0.5 text-gray-600 hover:text-red-400 hover:bg-gray-700 transition-colors"
+              title="Cancel upload"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          )}
         </div>
       </div>
 
@@ -180,10 +213,10 @@ function UploadItemRow({ item }: { item: UploadItem }) {
 // ── Container ─────────────────────────────────────────────────────────────────
 
 export function UploadQueue() {
-  const queue = useUploadStore((s) => s.queue)
-  const clearDone = useUploadStore((s) => s.clearDone)
+  const store = useUploadStore()
+  const { queue, clearDone, isVisible } = store
   const [minimized, setMinimized] = useState(false)
-  const [visible, setVisible] = useState(false)
+  const downloadActive = useDownloadStore(s => s.isVisible && s.queue.length > 0)
 
   const activeCount = queue.filter(
     (q) => q.status === 'queued' || q.status === 'uploading'
@@ -194,26 +227,17 @@ export function UploadQueue() {
       ? Math.round(queue.reduce((sum, q) => sum + q.progress, 0) / queue.length)
       : 0
 
-  useEffect(() => {
-    if (queue.length > 0) setVisible(true)
-  }, [queue.length])
-
-  useEffect(() => {
-    if (queue.length === 0) return
-    const allDone = queue.every((q) => q.status === 'done' || q.status === 'error')
-    if (allDone) {
-      const timer = setTimeout(() => {
-        setVisible(false)
-        clearDone()
-      }, 3500)
-      return () => clearTimeout(timer)
-    }
-  }, [queue, clearDone])
-
-  if (!visible || queue.length === 0) return null
-
   return (
-    <div className="fixed bottom-6 right-6 z-30 w-80">
+    <div
+      className={clsx(
+        'fixed right-6 z-30 w-80',
+        'transition-all duration-300 ease-in-out',
+        downloadActive ? 'bottom-[330px]' : 'bottom-6',
+        isVisible
+          ? 'opacity-100 translate-y-0'
+          : 'opacity-0 translate-y-4 pointer-events-none'
+      )}
+    >
       {minimized ? (
         // Collapsed pill
         <button

@@ -164,12 +164,15 @@ async function uploadChunk(
 export async function uploadFile(
   localPath: string,
   destPath: string,
-  onProgress?: (percent: number) => void
+  onProgress?: (percent: number) => void,
+  signal?: AbortSignal
 ): Promise<File> {
   let tempEncPath: string | null = null
   const activeTempChunks = new Set<string>()
 
   try {
+    if (signal?.aborted) throw new DOMException('Upload cancelled', 'AbortError')
+
     const { folderPath, fileName } = parseDestPath(destPath)
     const folder = getFolderByPath(folderPath)
     if (!folder) throw new Error(`Destination folder not found: ${folderPath}`)
@@ -274,6 +277,13 @@ export async function uploadFile(
     }
 
     for (let i = 0; i < chunks.length; i += CONCURRENCY) {
+      if (signal?.aborted) {
+        // Roll back any DB records created so far — file is half-uploaded
+        if (!existing) {
+          try { (await import('../db/files.db')).deleteFile(fileId) } catch { /* best-effort */ }
+        }
+        throw new DOMException('Upload cancelled', 'AbortError')
+      }
       const batch = chunks.slice(i, i + CONCURRENCY)
       console.log(
         `[upload] Batch ${Math.floor(i / CONCURRENCY) + 1}/${Math.ceil(chunks.length / CONCURRENCY)}: chunks ${i}–${i + batch.length - 1} (concurrency=${CONCURRENCY})`

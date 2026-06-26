@@ -3,7 +3,16 @@ import { Settings, HardDrive, Clock, Star, Trash2, Zap } from 'lucide-react'
 import { FolderTree } from '../folders/FolderTree'
 import { useAuthStore } from '../../store/auth.store'
 import { useFilesStore } from '../../store/files.store'
+import { useState, useEffect } from 'react'
 import clsx from 'clsx'
+
+function formatBytes(bytes: number): string {
+  if (!bytes || bytes <= 0) return '0 B'
+  if (bytes < 1024) return `${bytes} B`
+  if (bytes < 1024 ** 2) return `${(bytes / 1024).toFixed(1)} KB`
+  if (bytes < 1024 ** 3) return `${(bytes / 1024 ** 2).toFixed(1)} MB`
+  return `${(bytes / 1024 ** 3).toFixed(2)} GB`
+}
 
 export function Sidebar() {
   const user = useAuthStore((s) => s.user)
@@ -13,6 +22,23 @@ export function Sidebar() {
   const setTrashView = useFilesStore((s) => s.setTrashView)
   const loadRecent = useFilesStore((s) => s.loadRecent)
   const loadStarred = useFilesStore((s) => s.loadStarred)
+  const entries = useFilesStore((s) => s.entries)
+
+  const [storageUsed, setStorageUsed] = useState(0)
+
+  useEffect(() => {
+    async function loadStorage() {
+      try {
+        const result = await window.televault.files.storageUsed()
+        if (result.success && result.data) {
+          setStorageUsed(result.data.bytes)
+        }
+      } catch {
+        // non-fatal
+      }
+    }
+    loadStorage()
+  }, [entries])
 
   const navItems = [
     {
@@ -102,12 +128,12 @@ export function Sidebar() {
         <div className="px-2">
           <div className="mb-1.5 flex items-center justify-between text-xs text-gray-500">
             <span>Storage</span>
-            <span>Telegram</span>
+            <span>{formatBytes(storageUsed)} used</span>
           </div>
           <div className="h-1 rounded-full bg-gray-800 overflow-hidden">
             <div
-              className="h-full rounded-full bg-violet-500 transition-all duration-300"
-              style={{ width: '24%' }}
+              className="h-full rounded-full bg-violet-500 transition-all duration-500"
+              style={{ width: '100%' }}
             />
           </div>
           <p className="mt-1 text-xs text-gray-600">Unlimited via Telegram</p>

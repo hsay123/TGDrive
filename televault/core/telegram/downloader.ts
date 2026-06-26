@@ -92,6 +92,9 @@ export async function downloadFromTelegram(
       withRetry(() =>
         client.downloadMedia(message, {
           outputFile: options.destPath,
+          // @ts-ignore — gramjs accepts these but types may not expose them
+          partSizeKb: 512,  // 8× default (64 KB) — fewer round trips
+          workers: 4,       // parallel download workers
           progressCallback: options.onProgress
             ? (downloaded, total) => {
                 const downloadedNum = Number(downloaded.toString())
@@ -113,7 +116,7 @@ export async function downloadFromTelegram(
 export async function downloadFile(
   fileId: string,
   destPath: string,
-  onProgress?: (percent: number) => void
+  onProgress?: (percent: number, downloaded: number, total: number) => void
 ): Promise<void> {
   const tempPaths: string[] = []
   let chunkInfos: ChunkInfo[] = []
@@ -154,7 +157,7 @@ export async function downloadFile(
                   totalBytes > 0
                     ? ((downloadedBytes + downloaded) / totalBytes) * 100
                     : 0
-                onProgress(Math.min(99, overall))
+                onProgress(Math.min(99, overall), downloadedBytes + downloaded, totalBytes)
               }
             : undefined,
         })
@@ -163,7 +166,9 @@ export async function downloadFile(
         onProgress?.(
           totalBytes > 0
             ? Math.min(99, (downloadedBytes / totalBytes) * 100)
-            : 99
+            : 99,
+          downloadedBytes,
+          totalBytes
         )
 
         return chunkPath
@@ -198,7 +203,7 @@ export async function downloadFile(
     await fs.promises.mkdir(path.dirname(destPath), { recursive: true })
     await fs.promises.copyFile(finalPath, destPath)
 
-    onProgress?.(100)
+    onProgress?.(100, totalBytes, totalBytes)
   } catch (error) {
     console.error('[downloader] downloadFile error:', error)
     throw error

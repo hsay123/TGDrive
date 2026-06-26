@@ -34,9 +34,10 @@ export interface TeleVaultAPI {
     upload: (
       localPath: string,
       destFolderPath: string,
-      encrypt: boolean
+      encrypt: boolean,
+      uploadId: string
     ) => Promise<IpcResult<VFSFile>>
-    download: (fileId: string, destPath?: string) => Promise<IpcResult<void>>
+    download: (fileId: string) => Promise<IpcResult<{ success?: boolean; cancelled?: boolean; downloadId?: string; savedTo?: string }>>
     delete: (fileId: string, permanent?: boolean) => Promise<IpcResult<void>>
     move: (fileId: string, newFolderPath: string) => Promise<IpcResult<void>>
     rename: (fileId: string, newName: string) => Promise<IpcResult<void>>
@@ -53,11 +54,22 @@ export interface TeleVaultAPI {
     downloadToTemp: (fileId: string) => Promise<IpcResult<string>>
     readLocalFile: (filePath: string) => Promise<IpcResult<Uint8Array>>
     backfillThumbnails: () => Promise<IpcResult<{ processed: number; total: number }>>
+    storageUsed: () => Promise<IpcResult<{ bytes: number }>>
+    cancelUpload: (uploadId: string) => Promise<IpcResult<{ cancelled: boolean }>>
     onUploadProgress: (
       callback: (data: { localPath: string; percent: number }) => void
     ) => () => void
     onDownloadProgress: (
       callback: (data: { fileId: string; percent: number }) => void
+    ) => () => void
+    onDownloadStarted: (
+      callback: (data: { id: string; fileName: string; size: number }) => void
+    ) => () => void
+    onDownloadUpdate: (
+      callback: (data: { id: string; downloaded: number; total: number; speed: number }) => void
+    ) => () => void
+    onDownloadDone: (
+      callback: (data: { id: string; savedTo: string }) => void
     ) => () => void
   }
   folders: {
@@ -79,7 +91,7 @@ export interface TeleVaultAPI {
     getKeyFingerprint: () => Promise<IpcResult<string>>
   }
   system: {
-    openFilePicker: () => Promise<IpcResult<string[]>>
+    openFilePicker: () => Promise<IpcResult<{ path: string; size: number }[]>>
     openFolderPicker: () => Promise<IpcResult<string>>
     openInExplorer: (filePath: string) => Promise<IpcResult<void>>
     getAppVersion: () => Promise<IpcResult<string>>

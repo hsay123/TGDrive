@@ -7,12 +7,13 @@ import { FileList } from '../components/files/FileList'
 import { FilePreview } from '../components/files/FilePreview'
 import { DropZone } from '../components/upload/DropZone'
 import { UploadQueue } from '../components/upload/UploadQueue'
-
+import { DownloadQueue } from '../components/download/DownloadQueue'
 import { Spinner } from '../components/shared/Spinner'
 import { useFilesStore } from '../store/files.store'
 import { useTreeStore } from '../store/tree.store'
 import { useUIStore } from '../store/ui.store'
 import { useUpload } from '../hooks/useUpload'
+import { useDownloadListener } from '../hooks/useDownload'
 import { useSearch } from '../hooks/useSearch'
 import { MoveToModal } from '../components/folders/MoveToModal'
 
@@ -37,6 +38,7 @@ export default function Drive() {
   const [channelError, setChannelError] = useState<string | null>(null)
 
   useUpload()
+  useDownloadListener()
 
   useEffect(() => {
     loadTree()
@@ -180,6 +182,7 @@ export default function Drive() {
       </div>
 
       <UploadQueue />
+      <DownloadQueue />
 
       <FilePreview
         entry={previewEntry}

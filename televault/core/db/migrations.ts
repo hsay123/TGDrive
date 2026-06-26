@@ -108,4 +108,37 @@ export function runMigrations(db: Database.Database): void {
     apply()
     console.log('[migration 4] Created version_chunks table')
   }
+
+  // Migration 5: ensure version_num column exists on versions table (schema drift fix)
+  // and ensure versions + version_chunks tables exist for DBs that never had them
+  if (!applied.has(5)) {
+    const apply = db.transaction(() => {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS versions (
+          id          TEXT PRIMARY KEY,
+          file_id     TEXT NOT NULL,
+          version_num INTEGER NOT NULL DEFAULT 0,
+          size        INTEGER NOT NULL,
+          uploaded_at INTEGER NOT NULL,
+          label       TEXT,
+          FOREIGN KEY (file_id) REFERENCES files(id) ON DELETE CASCADE
+        );
+        CREATE TABLE IF NOT EXISTS version_chunks (
+          id          TEXT PRIMARY KEY,
+          version_id  TEXT NOT NULL,
+          chunk_index INTEGER NOT NULL,
+          message_id  INTEGER NOT NULL,
+          channel_id  TEXT NOT NULL,
+          size        INTEGER NOT NULL,
+          FOREIGN KEY (version_id) REFERENCES versions(id) ON DELETE CASCADE
+        );
+      `)
+      ensureColumn(db, 'versions', 'version_num', 'INTEGER NOT NULL DEFAULT 0')
+      db.prepare(
+        'INSERT INTO schema_migrations (version, applied_at) VALUES (?, ?)'
+      ).run(5, Date.now())
+    })
+    apply()
+    console.log('[migration 5] Ensured version_num column and versions/version_chunks tables')
+  }
 }

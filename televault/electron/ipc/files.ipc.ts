@@ -4,6 +4,7 @@ import path from 'path'
 import fs from 'fs/promises'
 import fsSync from 'fs'
 import { execSync } from 'child_process'
+import { v4 as uuidv4 } from 'uuid'
 import * as vfs from '../../core/fs/vfs'
 import { getVersionsByFileId } from '../../core/db/versions.db'
 import { getTrashedFiles } from '../../core/db/trash.db'
@@ -48,6 +49,9 @@ function mapVersion(v: Version): VersionRow {
   }
 }
 
+// Track in-flight uploads so they can be cancelled
+const activeUploads = new Map<string, AbortController>()
+
 export function registerFilesIpc(
   ipcMain: IpcMain,
   getMainWindow: () => BrowserWindow | null,
@@ -63,7 +67,8 @@ export function registerFilesIpc(
       _event,
       localPath: string,
       destFolderPath: string,
-      encrypt: boolean
+      encrypt: boolean,
+      uploadId: string
     ) =>
       ipcResult(async () => {
         // ── Disk space pre-check (technical limit — not a business limit) ──
@@ -85,43 +90,92 @@ export function registerFilesIpc(
 
         // ── Upload ───────────────────────────────────────────────────────
         await ensureChannelsReady()
+        const controller = new AbortController()
+        if (uploadId) activeUploads.set(uploadId, controller)
         const win = getMainWindow()
-        return vfs.uploadFile({
-          localPath,
-          destFolderPath,
-          encrypt,
-          onProgress: (percent) => {
-            win?.webContents.send('files:upload:progress', {
-              localPath,
-              percent,
-            })
-          },
-        })
+        try {
+          return await vfs.uploadFile({
+            localPath,
+            destFolderPath,
+            encrypt,
+            signal: controller.signal,
+            onProgress: (percent) => {
+              win?.webContents.send('files:upload:progress', {
+                localPath,
+                percent,
+              })
+            },
+          })
+        } finally {
+          if (uploadId) activeUploads.delete(uploadId)
+        }
       })
+  )
+
+  ipcMain.handle('files:cancelUpload', async (_event, uploadId: string) =>
+    ipcResult(() => {
+      const controller = activeUploads.get(uploadId)
+      if (controller) {
+        controller.abort()
+        activeUploads.delete(uploadId)
+      }
+      return { cancelled: !!controller }
+    })
   )
 
   ipcMain.handle(
     'files:download',
-    async (_event, fileId: string, destPath?: string) =>
+    async (event, fileId: string) =>
       ipcResult(async () => {
-        let targetPath = destPath
-        if (!targetPath) {
-          const result = await dialogApi.showSaveDialog({
-            title: 'Save File',
-          })
-          if (result.canceled || !result.filePath) {
-            throw new Error('Download cancelled')
-          }
-          targetPath = result.filePath
-        }
+        const file = getFileById(fileId)
+        if (!file) throw new Error('File not found')
 
-        const win = getMainWindow()
-        await vfs.downloadFile(fileId, targetPath, (percent) => {
-          win?.webContents.send('files:download:progress', {
-            fileId,
-            percent,
+        const result = await dialogApi.showSaveDialog({
+          defaultPath: file.name,
+          buttonLabel: 'Download',
+          title: 'Save File',
+        })
+        if (result.canceled || !result.filePath) {
+          return { cancelled: true }
+        }
+        const targetPath = result.filePath
+
+        const downloadId = uuidv4()
+        const sender = event.sender
+
+        // Notify renderer: download is starting
+        sender.send('download:started', {
+          id: downloadId,
+          fileName: file.name,
+          size: file.size,
+        })
+
+        let lastTime = Date.now()
+        let lastBytes = 0
+        let speedSmoothed = 0
+        const ALPHA = 0.4 // EWA smoothing factor
+
+        await vfs.downloadFile(fileId, targetPath, (_percent, downloaded, total) => {
+          const now = Date.now()
+          const elapsedSec = (now - lastTime) / 1000
+          if (elapsedSec > 0.2) {
+            const instantSpeed = (downloaded - lastBytes) / elapsedSec
+            speedSmoothed = speedSmoothed === 0
+              ? instantSpeed
+              : ALPHA * instantSpeed + (1 - ALPHA) * speedSmoothed
+            lastTime = now
+            lastBytes = downloaded
+          }
+          sender.send('download:progress', {
+            id: downloadId,
+            downloaded,
+            total,
+            speed: Math.max(0, speedSmoothed),
           })
         })
+
+        sender.send('download:done', { id: downloadId, savedTo: targetPath })
+        return { success: true, downloadId, savedTo: targetPath }
       })
   )
 
@@ -314,6 +368,13 @@ export function registerFilesIpc(
       }
 
       return { processed, total: imagesWithoutThumbs.length }
+    })
+  )
+
+  ipcMain.handle('files:storageUsed', async () =>
+    ipcResult(async () => {
+      const { getTotalStorageUsed } = await import('../../core/db/files.db')
+      return { bytes: getTotalStorageUsed() }
     })
   )
 }

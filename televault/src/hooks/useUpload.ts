@@ -17,6 +17,7 @@ export function useUpload() {
   const updateProgress = useUploadStore((s) => s.updateProgress)
   const markDone = useUploadStore((s) => s.markDone)
   const markError = useUploadStore((s) => s.markError)
+  const markCancelled = useUploadStore((s) => s.markCancelled)
   const refreshFolder = useFilesStore((s) => s.refreshFolder)
   const loadTree = useTreeStore((s) => s.loadTree)
   const processingRef = useRef<Set<string>>(new Set())
@@ -47,19 +48,27 @@ export function useUpload() {
           const result = await window.televault.files.upload(
             item.localPath,
             item.destPath,
-            item.encrypt
+            item.encrypt,
+            item.id   // uploadId — used by main process for cancellation
           )
           if (result.success) {
             markDone(item.id)
             await refreshFolder()
             await loadTree()
+          } else if ((result as any).cancelled) {
+            markCancelled(item.id)
           } else {
             const errorMsg = result.error ?? 'Upload failed'
             handleUploadError(errorMsg, item.id, markError)
           }
         } catch (error) {
           const message = error instanceof Error ? error.message : 'Upload failed'
-          handleUploadError(message, item.id, markError)
+          // AbortError = cancelled, not a user-visible failure
+          if (error instanceof DOMException && error.name === 'AbortError') {
+            markCancelled(item.id)
+          } else {
+            handleUploadError(message, item.id, markError)
+          }
         } finally {
           processingRef.current.delete(item.id)
         }
@@ -69,7 +78,7 @@ export function useUpload() {
     if (queue.some((item) => item.status === 'queued')) {
       processQueue()
     }
-  }, [queue, markUploading, markDone, markError, refreshFolder, loadTree])
+  }, [queue, markUploading, markDone, markError, markCancelled, refreshFolder, loadTree])
 }
 
 function handleUploadError(

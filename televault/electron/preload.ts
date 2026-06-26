@@ -15,10 +15,10 @@ const televault: TeleVaultAPI = {
   },
   files: {
     list: (folderPath) => ipcRenderer.invoke('files:list', folderPath),
-    upload: (localPath, destFolderPath, encrypt) =>
-      ipcRenderer.invoke('files:upload', localPath, destFolderPath, encrypt),
-    download: (fileId, destPath) =>
-      ipcRenderer.invoke('files:download', fileId, destPath),
+    upload: (localPath, destFolderPath, encrypt, uploadId) =>
+      ipcRenderer.invoke('files:upload', localPath, destFolderPath, encrypt, uploadId),
+    download: (fileId) =>
+      ipcRenderer.invoke('files:download', fileId),
     delete: (fileId, permanent) =>
       ipcRenderer.invoke('files:delete', fileId, permanent),
     move: (fileId, newFolderPath) =>
@@ -38,6 +38,8 @@ const televault: TeleVaultAPI = {
     downloadToTemp: (fileId) => ipcRenderer.invoke('files:downloadToTemp', fileId),
     readLocalFile: (filePath) => ipcRenderer.invoke('files:readLocalFile', filePath),
     backfillThumbnails: () => ipcRenderer.invoke('files:backfillThumbnails'),
+    storageUsed: () => ipcRenderer.invoke('files:storageUsed'),
+    cancelUpload: (uploadId) => ipcRenderer.invoke('files:cancelUpload', uploadId),
     onUploadProgress: (callback) => {
       const handler = (
         _event: Electron.IpcRendererEvent,
@@ -54,6 +56,21 @@ const televault: TeleVaultAPI = {
       ipcRenderer.on('files:download:progress', handler)
       return () =>
         ipcRenderer.removeListener('files:download:progress', handler)
+    },
+    onDownloadStarted: (callback) => {
+      const handler = (_event: Electron.IpcRendererEvent, data: { id: string; fileName: string; size: number }) => callback(data)
+      ipcRenderer.on('download:started', handler)
+      return () => ipcRenderer.removeListener('download:started', handler)
+    },
+    onDownloadUpdate: (callback) => {
+      const handler = (_event: Electron.IpcRendererEvent, data: { id: string; downloaded: number; total: number; speed: number }) => callback(data)
+      ipcRenderer.on('download:progress', handler)
+      return () => ipcRenderer.removeListener('download:progress', handler)
+    },
+    onDownloadDone: (callback) => {
+      const handler = (_event: Electron.IpcRendererEvent, data: { id: string; savedTo: string }) => callback(data)
+      ipcRenderer.on('download:done', handler)
+      return () => ipcRenderer.removeListener('download:done', handler)
     },
   },
   folders: {

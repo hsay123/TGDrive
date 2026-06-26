@@ -2,6 +2,7 @@ import { app, BrowserWindow, ipcMain, dialog, shell, protocol, net, session } fr
 import path from 'path'
 import { pathToFileURL } from 'url'
 import { config } from 'dotenv'
+import fsSync from 'fs'
 import { getDb } from '../core/db/db'
 import { ensureRootFolder } from '../core/fs/vfs'
 import { registerAuthIpc } from './ipc/auth.ipc'
@@ -91,7 +92,10 @@ function registerSystemIpc(): void {
       if (result.canceled) {
         return []
       }
-      return result.filePaths
+      return result.filePaths.map((p) => ({
+        path: p,
+        size: fsSync.statSync(p).size,
+      }))
     })
   )
 

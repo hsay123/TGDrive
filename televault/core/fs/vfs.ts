@@ -162,6 +162,7 @@ export interface UploadFileOptions {
   destFolderPath: string
   encrypt: boolean
   onProgress?: (percent: number) => void
+  signal?: AbortSignal
 }
 
 export async function uploadFile(options: UploadFileOptions): Promise<VFSFile> {
@@ -182,7 +183,8 @@ export async function uploadFile(options: UploadFileOptions): Promise<VFSFile> {
     const file = await telegramUpload(
       options.localPath,
       destPath,
-      options.onProgress
+      options.onProgress,
+      options.signal
     )
     return mapFile(file)
   } finally {
@@ -197,7 +199,7 @@ export async function uploadFile(options: UploadFileOptions): Promise<VFSFile> {
 export async function downloadFile(
   fileId: string,
   destPath: string,
-  onProgress?: (percent: number) => void
+  onProgress?: (percent: number, downloaded: number, total: number) => void
 ): Promise<void> {
   await telegramDownload(fileId, destPath, onProgress)
 }

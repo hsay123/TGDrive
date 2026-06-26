@@ -50,10 +50,10 @@ export function Toolbar() {
       return
     }
     addToQueue(
-      result.data.map((p) => ({
-        name: p.split('/').pop() ?? p,
-        localPath: p,
-        size: 0,
+      result.data.map((f) => ({
+        name: f.path.split('/').pop() ?? f.path,
+        localPath: f.path,
+        size: f.size,
       })),
       currentPath,
       false
