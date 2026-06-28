@@ -6,6 +6,16 @@ import { useAuthStore } from '../store/auth.store'
 import { useSync } from '../hooks/useSync'
 import { useState, useEffect } from 'react'
 import clsx from 'clsx'
+import { STORAGE_LIMIT_BYTES, STORAGE_LIMIT_LABEL } from '../utils/constants'
+
+function formatBytes(bytes: number): string {
+  if (!bytes || bytes <= 0) return '0 B'
+  if (bytes < 1024) return `${bytes} B`
+  if (bytes < 1024 ** 2) return `${(bytes / 1024).toFixed(1)} KB`
+  if (bytes < 1024 ** 3) return `${(bytes / 1024 ** 2).toFixed(1)} MB`
+  if (bytes < 1024 ** 4) return `${(bytes / 1024 ** 3).toFixed(2)} GB`
+  return `${(bytes / 1024 ** 4).toFixed(2)} TB`
+}
 
 type Tab = 'account' | 'storage' | 'encryption' | 'sync'
 
@@ -30,6 +40,7 @@ export default function Settings() {
   const [isLoggingOut, setIsLoggingOut] = useState(false)
   const [isBackfilling, setIsBackfilling] = useState(false)
   const [maskedApiId, setMaskedApiId] = useState<string | null>(null)
+  const [storageUsed, setStorageUsed] = useState(0)
 
   useEffect(() => {
     window.televault.settings.get('encryption_enabled').then((r) => {
@@ -51,6 +62,20 @@ export default function Settings() {
         setMaskedApiId(id.length > 3 ? `${id.slice(0, 3)}${'•'.repeat(id.length - 3)}` : '•••')
       }
     })
+  }, [])
+
+  useEffect(() => {
+    async function loadStorage() {
+      try {
+        const result = await window.televault.files.storageUsed()
+        if (result.success && result.data) {
+          setStorageUsed(result.data.bytes)
+        }
+      } catch {
+        // non-fatal
+      }
+    }
+    loadStorage()
   }, [])
 
   const handleToggleEncryption = async () => {
@@ -189,6 +214,37 @@ export default function Settings() {
         {/* ── Storage Tab ──────────────────────────────────────────────────── */}
         {activeTab === 'storage' && (
           <div className="space-y-4">
+            {/* Storage breakdown */}
+            <div className="rounded-xl border border-gray-700 bg-gray-900 p-6 space-y-4">
+              <div className="flex items-center gap-3 mb-2">
+                <HardDrive className="h-5 w-5 text-violet-400" />
+                <h3 className="font-semibold text-gray-100">Storage</h3>
+              </div>
+              <div className="bg-gray-800/60 rounded-xl p-4 space-y-3">
+                <div className="flex justify-between">
+                  <span className="text-sm text-gray-400">Plan storage</span>
+                  <span className="text-sm font-semibold text-gray-100">{STORAGE_LIMIT_LABEL}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-sm text-gray-400">Used</span>
+                  <span className="text-sm text-gray-100">{formatBytes(storageUsed)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-sm text-gray-400">Available</span>
+                  <span className="text-sm text-teal-400 font-medium">
+                    {formatBytes(STORAGE_LIMIT_BYTES - storageUsed)}
+                  </span>
+                </div>
+                <div className="h-2 bg-gray-700 rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-violet-500 rounded-full transition-all duration-700"
+                    style={{ width: `${Math.max((storageUsed / STORAGE_LIMIT_BYTES) * 100, 0.2)}%` }}
+                  />
+                </div>
+                <p className="text-xs text-gray-600">Powered by Telegram infrastructure</p>
+              </div>
+            </div>
+
             <div className="rounded-xl border border-gray-700 bg-gray-900 p-6">
               <div className="flex items-center gap-3 mb-4">
                 <HardDrive className="h-5 w-5 text-violet-400" />

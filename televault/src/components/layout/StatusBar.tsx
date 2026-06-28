@@ -3,18 +3,43 @@ import { useSync } from '../../hooks/useSync'
 import { useFilesStore } from '../../store/files.store'
 import { useState, useEffect } from 'react'
 import clsx from 'clsx'
+import { STORAGE_LIMIT_LABEL } from '../../utils/constants'
+
+function formatBytes(bytes: number): string {
+  if (!bytes || bytes <= 0) return '0 B'
+  if (bytes < 1024) return `${bytes} B`
+  if (bytes < 1024 ** 2) return `${(bytes / 1024).toFixed(1)} KB`
+  if (bytes < 1024 ** 3) return `${(bytes / 1024 ** 2).toFixed(1)} MB`
+  if (bytes < 1024 ** 4) return `${(bytes / 1024 ** 3).toFixed(2)} GB`
+  return `${(bytes / 1024 ** 4).toFixed(2)} TB`
+}
 
 export function StatusBar() {
   const { status, isSyncing, push, pull } = useSync()
   const entries = useFilesStore((s) => s.entries)
   const selectedIds = useFilesStore((s) => s.selectedIds)
   const [version, setVersion] = useState('0.1.0')
+  const [storageUsed, setStorageUsed] = useState(0)
 
   useEffect(() => {
     window.televault.system.getAppVersion().then((r) => {
       if (r.success && r.data) setVersion(r.data)
     })
   }, [])
+
+  useEffect(() => {
+    async function loadStorage() {
+      try {
+        const result = await window.televault.files.storageUsed()
+        if (result.success && result.data) {
+          setStorageUsed(result.data.bytes)
+        }
+      } catch {
+        // non-fatal
+      }
+    }
+    loadStorage()
+  }, [entries])
 
   const fileCount = entries.length
   const selectedCount = selectedIds.size
@@ -65,8 +90,15 @@ export function StatusBar() {
         </button>
       </div>
 
-      {/* Right: version */}
-      <span className="text-gray-600">v{version}</span>
+      {/* Right: storage + version */}
+      <div className="flex items-center gap-3">
+        <span className="text-gray-600">
+          {formatBytes(storageUsed)}{' '}
+          <span className="text-gray-700">/</span>{' '}
+          {STORAGE_LIMIT_LABEL}
+        </span>
+        <span className="text-gray-600">v{version}</span>
+      </div>
     </div>
   )
 }

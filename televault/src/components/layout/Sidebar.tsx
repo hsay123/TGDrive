@@ -5,13 +5,15 @@ import { useAuthStore } from '../../store/auth.store'
 import { useFilesStore } from '../../store/files.store'
 import { useState, useEffect } from 'react'
 import clsx from 'clsx'
+import { STORAGE_LIMIT_BYTES, STORAGE_LIMIT_LABEL } from '../../utils/constants'
 
 function formatBytes(bytes: number): string {
   if (!bytes || bytes <= 0) return '0 B'
   if (bytes < 1024) return `${bytes} B`
   if (bytes < 1024 ** 2) return `${(bytes / 1024).toFixed(1)} KB`
   if (bytes < 1024 ** 3) return `${(bytes / 1024 ** 2).toFixed(1)} MB`
-  return `${(bytes / 1024 ** 3).toFixed(2)} GB`
+  if (bytes < 1024 ** 4) return `${(bytes / 1024 ** 3).toFixed(2)} GB`
+  return `${(bytes / 1024 ** 4).toFixed(2)} TB`
 }
 
 export function Sidebar() {
@@ -125,18 +127,35 @@ export function Sidebar() {
       {/* Bottom section */}
       <div className="border-t border-gray-800 p-3 space-y-3">
         {/* Storage bar */}
-        <div className="px-2">
-          <div className="mb-1.5 flex items-center justify-between text-xs text-gray-500">
-            <span>Storage</span>
-            <span>{formatBytes(storageUsed)} used</span>
+        <div className="px-2 space-y-1.5">
+          <div className="flex items-center justify-between">
+            <span className="text-xs text-gray-500">Storage</span>
+            <span className="text-xs text-gray-400 font-medium">
+              {formatBytes(storageUsed)}{' '}
+              <span className="text-gray-600">of {STORAGE_LIMIT_LABEL}</span>
+            </span>
           </div>
-          <div className="h-1 rounded-full bg-gray-800 overflow-hidden">
-            <div
-              className="h-full rounded-full bg-violet-500 transition-all duration-500"
-              style={{ width: '100%' }}
-            />
+          <div className="h-1.5 bg-gray-700/60 rounded-full overflow-hidden">
+            {(() => {
+              const usedPercent = Math.min((storageUsed / STORAGE_LIMIT_BYTES) * 100, 100)
+              return (
+                <div
+                  className={clsx(
+                    'h-full rounded-full transition-all duration-700 ease-out',
+                    usedPercent > 90
+                      ? 'bg-red-500'
+                      : usedPercent > 70
+                      ? 'bg-amber-500'
+                      : 'bg-violet-500'
+                  )}
+                  style={{ width: `${Math.max(usedPercent, 0.5)}%` }}
+                />
+              )
+            })()}
           </div>
-          <p className="mt-1 text-xs text-gray-600">Unlimited via Telegram</p>
+          <p className="text-xs text-gray-600">
+            {formatBytes(STORAGE_LIMIT_BYTES - storageUsed)} free
+          </p>
         </div>
 
         {/* User row */}
