@@ -6,7 +6,7 @@ import type { VFSEntry } from '../../types'
 import { FileIcon } from './FileIcon'
 import { toThumbnailUrl } from '../../lib/tvfile'
 import { useFilesStore } from '../../store/files.store'
-
+//file thumbnail card
 interface FileCardProps {
   entry: VFSEntry
   selected: boolean
