@@ -3,7 +3,6 @@ import clsx from 'clsx'
 import { Folder, Lock, Star } from 'lucide-react'
 import toast from 'react-hot-toast'
 import type { VFSEntry } from '../../types'
-import { formatFileSize } from '../../lib/utils'
 import { FileIcon } from './FileIcon'
 import { toThumbnailUrl } from '../../lib/tvfile'
 import { useFilesStore } from '../../store/files.store'
@@ -121,7 +120,7 @@ export function FileCard({
               {entry.name}
             </p>
             {/* Optional secondary info like size or lock can go here if needed, but keeping it clean per requirements */}
-            {entry.isEncrypted && (
+            {entry.type === 'file' && (entry as any).isEncrypted && (
               <Lock className="mt-1 h-3 w-3 text-teal-400" />
             )}
           </div>
