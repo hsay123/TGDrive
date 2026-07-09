@@ -54,7 +54,7 @@ export function StatusBar() {
   }
 
   return (
-    <div className="flex h-6 items-center justify-between border-t border-gray-800 bg-gray-900 px-4 text-xs text-gray-500">
+    <div className="relative z-10 flex h-7 items-center justify-between border-t border-white/5 bg-[#16161a]/80 backdrop-blur-md px-5 text-xs text-gray-400">
       {/* Left: item count + selection */}
       <div className="flex items-center gap-3">
         <span>

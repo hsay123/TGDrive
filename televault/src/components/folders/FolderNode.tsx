@@ -25,12 +25,12 @@ export function FolderNode({ folder, depth }: FolderNodeProps) {
     <div>
       <button
         className={clsx(
-          'flex w-full items-center gap-1 rounded-md py-1.5 pr-2 text-sm transition-colors duration-150',
+          'flex w-full items-center gap-1.5 rounded-lg py-1.5 pr-2 text-sm transition-colors duration-150',
           isActive
-            ? 'bg-violet-600/20 text-violet-300 font-medium'
-            : 'text-gray-400 hover:bg-gray-800 hover:text-gray-200'
+            ? 'bg-white/10 text-white font-medium shadow-sm'
+            : 'text-gray-400 hover:bg-white/5 hover:text-gray-200'
         )}
-        style={{ paddingLeft: `${depth * 12 + 6}px` }}
+        style={{ paddingLeft: `${depth * 16 + 8}px` }}
         onClick={() => {
           setPath(folder.path)
           if (hasChildren) toggleExpand(folder.id)
@@ -38,7 +38,7 @@ export function FolderNode({ folder, depth }: FolderNodeProps) {
       >
         {/* Expand arrow */}
         <span
-          className="flex h-4 w-4 items-center justify-center flex-shrink-0"
+          className="flex h-5 w-5 items-center justify-center flex-shrink-0"
           onClick={(e) => {
             e.stopPropagation()
             if (hasChildren) toggleExpand(folder.id)
@@ -47,29 +47,29 @@ export function FolderNode({ folder, depth }: FolderNodeProps) {
           {hasChildren ? (
             <ChevronRight
               className={clsx(
-                'h-3.5 w-3.5 text-gray-500 transition-transform duration-150',
+                'h-4 w-4 text-gray-500 transition-transform duration-150',
                 isExpanded && 'rotate-90'
               )}
             />
           ) : (
-            <span className="w-3.5" />
+            <span className="w-4" />
           )}
         </span>
 
         {/* Folder icon */}
         <Folder
           className={clsx(
-            'h-3.5 w-3.5 flex-shrink-0',
-            isActive ? 'text-violet-400' : 'text-gray-500'
+            'h-4 w-4 flex-shrink-0',
+            isActive ? 'text-rose-400' : 'text-gray-500'
           )}
         />
 
         {/* Name */}
-        <span className="flex-1 truncate text-left text-xs">{folder.name}</span>
+        <span className="flex-1 truncate text-left text-[13px]">{folder.name}</span>
 
         {/* File count badge */}
         {folder.fileCount > 0 && (
-          <span className="flex-shrink-0 rounded-full bg-gray-800 px-1.5 text-[10px] text-gray-500">
+          <span className="flex-shrink-0 rounded-full bg-[#2a2a2e]/80 shadow-[inset_0_1px_0_rgba(255,255,255,0.1)] px-2 py-0.5 text-[10px] font-medium text-gray-400">
             {folder.fileCount}
           </span>
         )}

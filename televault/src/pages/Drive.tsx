@@ -5,10 +5,13 @@ import { StatusBar } from '../components/layout/StatusBar'
 import { FileGrid } from '../components/files/FileGrid'
 import { FileList } from '../components/files/FileList'
 import { FilePreview } from '../components/files/FilePreview'
+import { FolderCard } from '../components/files/FolderCard'
+import { FilesTable } from '../components/files/FilesTable'
 import { DropZone } from '../components/upload/DropZone'
 import { UploadQueue } from '../components/upload/UploadQueue'
 import { DownloadQueue } from '../components/download/DownloadQueue'
 import { Spinner } from '../components/shared/Spinner'
+import { ContextMenu } from '../components/files/ContextMenu'
 import { useFilesStore } from '../store/files.store'
 import { useTreeStore } from '../store/tree.store'
 import { useUIStore } from '../store/ui.store'
@@ -16,6 +19,15 @@ import { useUpload } from '../hooks/useUpload'
 import { useDownloadListener } from '../hooks/useDownload'
 import { useSearch } from '../hooks/useSearch'
 import { MoveToModal } from '../components/folders/MoveToModal'
+import type { VFSEntry } from '../types'
+
+const sectionHeading: React.CSSProperties = {
+  fontSize: 22,
+  fontWeight: 700,
+  color: 'rgba(255,255,255,0.90)',
+  letterSpacing: '-0.3px',
+  marginBottom: 18,
+}
 
 export default function Drive() {
   const currentPath = useFilesStore((s) => s.currentPath)
@@ -24,6 +36,8 @@ export default function Drive() {
   const entries = useFilesStore((s) => s.entries)
   const clearSelection = useFilesStore((s) => s.clearSelection)
   const selectedIds = useFilesStore((s) => s.selectedIds)
+  const selectFile = useFilesStore((s) => s.selectFile)
+  const setPath = useFilesStore((s) => s.setPath)
   const loadTree = useTreeStore((s) => s.loadTree)
   const expandPath = useTreeStore((s) => s.expandPath)
   const viewMode = useUIStore((s) => s.viewMode)
@@ -36,6 +50,11 @@ export default function Drive() {
   // Channel setup state
   const [channelBanner, setChannelBanner] = useState<'checking' | 'initializing' | 'error' | null>(null)
   const [channelError, setChannelError] = useState<string | null>(null)
+
+  // Context menu state for folder cards
+  const [contextMenu, setContextMenu] = useState<{
+    x: number; y: number; entry: VFSEntry
+  } | null>(null)
 
   useUpload()
   useDownloadListener()
@@ -115,11 +134,41 @@ export default function Drive() {
   const displayEntries = searchQuery.length > 1 ? searchResults : entries
   const previewEntry = displayEntries.find((e) => e.id === previewEntryId) ?? null
 
-  return (
-    <div className="flex h-screen bg-gray-950">
-      <Sidebar />
+  // Split entries into folders and files
+  const folderEntries = displayEntries.filter((e) => e.type === 'folder')
+  const fileEntries = displayEntries.filter((e) => e.type === 'file')
 
-      <div className="flex min-w-0 flex-1 flex-col">
+  // Determine if we should show the new split layout (grid view, not searching)
+  const showSplitLayout = viewMode === 'grid' && searchQuery.length <= 1
+
+  // Helper to find folder in tree to get correct fileCount
+  const tree = useTreeStore((s) => s.tree)
+  const findFolderInTree = (node: any, id: string): any => {
+    if (!node) return null
+    if (node.id === id) return node
+    if (node.children) {
+      for (const child of node.children) {
+        const found = findFolderInTree(child, id)
+        if (found) return found
+      }
+    }
+    return null
+  }
+
+  return (
+    <div className="flex h-screen bg-[#0f0f11] relative overflow-hidden text-gray-200">
+      {/* Background Gradient Orbs */}
+      <div className="absolute inset-0 pointer-events-none z-0">
+        <div className="absolute -top-[10%] -right-[5%] w-[600px] h-[600px] rounded-full bg-violet-900/10 blur-[100px]" />
+        <div className="absolute top-[30%] -left-[5%] w-[500px] h-[500px] rounded-full bg-rose-900/5 blur-[120px]" />
+        <div className="absolute -bottom-[20%] right-[10%] w-[700px] h-[700px] rounded-full bg-blue-900/10 blur-[120px]" />
+      </div>
+
+      {/* Main Layout Area */}
+      <div className="relative z-10 flex h-full w-full">
+        <Sidebar />
+
+        <div className="flex min-w-0 flex-1 flex-col">
         <Toolbar />
 
         {/* Channel setup banner */}
@@ -165,13 +214,82 @@ export default function Drive() {
                   </button>
                 </div>
               )}
-              <div className="flex-1 overflow-hidden">
-                {viewMode === 'grid' ? (
-                  <FileGrid entries={displayEntries} />
-                ) : (
-                  <FileList entries={displayEntries} />
-                )}
-              </div>
+
+              {showSplitLayout ? (
+                /* ===== INSTUDY-STYLE SPLIT LAYOUT ===== */
+                <div style={{ padding: '28px 28px', overflowY: 'auto', flex: 1 }}>
+
+                  {/* FOLDERS SECTION */}
+                  {folderEntries.length > 0 && (
+                    <section style={{ marginBottom: 40 }}>
+                      <h2 style={sectionHeading}>Folders</h2>
+                      <div style={{
+                        display: 'flex',
+                        gap: 16,
+                        flexWrap: 'wrap',
+                      }}>
+                        {folderEntries.map(folder => {
+                          const treeFolder = findFolderInTree(tree, folder.id)
+                          const actualFolder = treeFolder || folder
+                          return (
+                            <FolderCard
+                              key={folder.id}
+                              folder={actualFolder}
+                              selected={selectedIds.has(folder.id)}
+                              onClick={() => selectFile(folder.id, false)}
+                              onDoubleClick={() => setPath(folder.path)}
+                              onContextMenu={(e) => {
+                                e.preventDefault()
+                                setContextMenu({ x: e.clientX, y: e.clientY, entry: folder })
+                              }}
+                            />
+                          )
+                        })}
+                      </div>
+                    </section>
+                  )}
+
+                  {/* FILES SECTION — grid view */}
+                  {fileEntries.length > 0 && (
+                    <section>
+                      <h2 style={sectionHeading}>Files</h2>
+                      <FileGrid entries={fileEntries} />
+                    </section>
+                  )}
+
+                  {/* EMPTY STATE */}
+                  {folderEntries.length === 0 && fileEntries.length === 0 && (
+                    <div style={{
+                      display: 'flex', flexDirection: 'column',
+                      alignItems: 'center', justifyContent: 'center',
+                      height: '55%', gap: 14,
+                    }}>
+                      <div style={{
+                        width: 64, height: 64, borderRadius: 18,
+                        background: 'rgba(255,255,255,0.04)',
+                        border: '1px solid rgba(255,255,255,0.08)',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        fontSize: 28,
+                      }}>📂</div>
+                      <p style={{ fontSize: 15, fontWeight: 600, color: 'rgba(255,255,255,0.4)' }}>
+                        This folder is empty
+                      </p>
+                      <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.2)' }}>
+                        Drop files here or click Upload
+                      </p>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                /* ===== LEGACY VIEW (list mode or search) ===== */
+                <div className="flex-1 overflow-hidden">
+                  {viewMode === 'grid' ? (
+                    <FileGrid entries={displayEntries} />
+                  ) : (
+                    <FileList entries={displayEntries} />
+                  )}
+                </div>
+              )}
             </div>
           )}
 
@@ -190,6 +308,17 @@ export default function Drive() {
       />
 
       <MoveToModal />
+
+      {/* Context menu for folder cards & file table rows */}
+      {contextMenu && (
+        <ContextMenu
+          x={contextMenu.x}
+          y={contextMenu.y}
+          entry={contextMenu.entry}
+          onClose={() => setContextMenu(null)}
+        />
+      )}
+      </div>
     </div>
   )
 }

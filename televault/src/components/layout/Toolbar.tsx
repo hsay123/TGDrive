@@ -90,7 +90,7 @@ export function Toolbar() {
   }, [])
 
   return (
-    <div className="flex items-center gap-2 border-b border-gray-800 bg-gray-900 px-4 py-2.5 h-[52px]">
+    <div className="relative z-10 flex items-center gap-2 border-b border-white/5 bg-[#16161a]/80 backdrop-blur-md px-5 py-2.5 h-[56px]">
       {/* Breadcrumb */}
       <nav className="flex min-w-0 flex-1 items-center gap-1 text-sm text-gray-400 overflow-hidden">
         <button
@@ -153,7 +153,7 @@ export function Toolbar() {
       </nav>
 
       {/* Right side actions */}
-      <div className="flex items-center gap-1.5 flex-shrink-0">
+      <div className="flex items-center gap-2 flex-shrink-0">
         {/* Search */}
         <div className="relative flex items-center">
           {searchOpen ? (
@@ -169,7 +169,7 @@ export function Toolbar() {
                   onBlur={() => {
                     if (!searchQuery) setSearchOpen(false)
                   }}
-                  className="w-48 rounded-md border border-gray-700 bg-gray-800 py-1.5 pl-8 pr-3 text-sm text-gray-100 placeholder:text-gray-600 focus:outline-none focus:ring-2 focus:ring-violet-500 transition-all duration-200"
+                  className="w-52 rounded-full border border-white/10 bg-white/5 py-1.5 pl-8 pr-3 text-sm text-gray-100 placeholder:text-gray-500 focus:outline-none focus:ring-1 focus:ring-rose-500 transition-all duration-200"
                 />
               </div>
               {searchQuery && (

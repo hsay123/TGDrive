@@ -26,9 +26,6 @@ export function FileCard({
   const isFolder = entry.type === 'folder'
   const thumbnailUrl =
     entry.type === 'file' ? toThumbnailUrl(entry.thumbnailPath) : null
-  const mimeLabel = entry.type === 'file'
-    ? (entry.mimeType?.split('/')[1]?.toUpperCase() ?? 'FILE')
-    : null
   const isStarred = entry.type === 'file' && (entry as any).starred === 1
 
   const renamingId = useFilesStore((s) => s.renamingId)
@@ -64,10 +61,10 @@ export function FileCard({
   return (
     <div
       className={clsx(
-        'group relative flex h-full cursor-pointer flex-col overflow-hidden rounded-lg border bg-gray-800 transition-all duration-150',
+        'group relative flex cursor-pointer flex-col overflow-hidden rounded-[20px] transition-all duration-200 border',
         selected
-          ? 'border-violet-500 bg-violet-600/10 ring-1 ring-violet-500'
-          : 'border-gray-700 hover:bg-gray-700 hover:border-gray-600'
+          ? 'border-rose-400 bg-rose-500/10'
+          : 'border-white/5 bg-white/5 hover:bg-white/10 hover:border-white/10 backdrop-blur-md'
       )}
       onClick={(e) => !isRenaming && onSelect(e.metaKey || e.ctrlKey, e.shiftKey)}
       onDoubleClick={() => !isRenaming && onDoubleClick()}
@@ -76,37 +73,39 @@ export function FileCard({
       {/* Star indicator */}
       {isStarred && (
         <Star
-          size={13}
-          className="absolute top-2 right-2 z-10 fill-yellow-400 text-yellow-400 drop-shadow"
+          size={14}
+          className="absolute top-2.5 right-2.5 z-10 fill-yellow-400 text-yellow-400 drop-shadow-md"
         />
       )}
 
-      {/* Preview area */}
-      <div className="flex flex-1 items-center justify-center bg-gray-800/50 p-4 h-[100px]">
+      {/* Preview area - fixed aspect ratio (squareish) */}
+      <div className="relative flex aspect-square w-full items-center justify-center p-3">
         {isFolder ? (
-          <Folder className="h-14 w-14 text-violet-400" />
+          <Folder className="h-16 w-16 text-violet-400" />
         ) : thumbnailUrl ? (
           <img
             src={thumbnailUrl}
             alt={entry.name}
-            className="h-full w-full object-cover rounded-md"
+            className="h-full w-full object-cover rounded-xl shadow-lg border border-white/10"
             onError={(e) => {
               e.currentTarget.style.display = 'none'
             }}
           />
         ) : (
-          <FileIcon mime={entry.mimeType} size="lg" />
+          <div className="h-full w-full flex items-center justify-center rounded-xl bg-black/20 border border-white/5 shadow-inner">
+            <FileIcon mime={entry.mimeType} size="lg" />
+          </div>
         )}
       </div>
 
-      {/* Footer */}
-      <div className="border-t border-gray-700 px-2.5 py-2">
+      {/* Footer / Filename */}
+      <div className="px-3 pb-4 pt-1 text-center">
         {isRenaming ? (
           <input
             ref={inputRef}
             autoFocus
             defaultValue={entry.name}
-            className="w-full rounded border border-violet-500 bg-gray-900 px-1.5 py-0.5 text-sm text-gray-100 outline-none focus:ring-1 focus:ring-violet-500"
+            className="w-full rounded-md border border-rose-400 bg-black/40 px-2 py-1 text-xs text-white outline-none text-center focus:ring-1 focus:ring-rose-500"
             onClick={(e) => e.stopPropagation()}
             onBlur={(e) => handleRename(e.target.value)}
             onKeyDown={(e) => {
@@ -117,28 +116,14 @@ export function FileCard({
             onFocus={(e) => e.target.select()}
           />
         ) : (
-          <p
-            className="text-sm font-medium text-gray-100 leading-tight"
-            style={{
-              display: '-webkit-box',
-              WebkitLineClamp: 2,
-              WebkitBoxOrient: 'vertical',
-              overflow: 'hidden',
-            }}
-          >
-            {entry.name}
-          </p>
-        )}
-        {!isFolder && !isRenaming && (
-          <div className="mt-1 flex items-center gap-1.5 text-xs text-gray-500">
-            <span>{formatFileSize(entry.size)}</span>
-            {mimeLabel && (
-              <>
-                <span className="text-gray-700">·</span>
-                <span>{mimeLabel}</span>
-              </>
+          <div className="flex flex-col items-center">
+            <p className="w-full text-[13px] font-medium text-gray-200 truncate">
+              {entry.name}
+            </p>
+            {/* Optional secondary info like size or lock can go here if needed, but keeping it clean per requirements */}
+            {entry.isEncrypted && (
+              <Lock className="mt-1 h-3 w-3 text-teal-400" />
             )}
-            {entry.isEncrypted && <Lock className="h-3 w-3 text-teal-500" />}
           </div>
         )}
       </div>

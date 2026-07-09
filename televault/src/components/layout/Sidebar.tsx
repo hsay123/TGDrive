@@ -27,6 +27,7 @@ export function Sidebar() {
   const entries = useFilesStore((s) => s.entries)
 
   const [storageUsed, setStorageUsed] = useState(0)
+  const [sidebarTab, setSidebarTab] = useState<'folders' | 'tags'>('folders')
 
   useEffect(() => {
     async function loadStorage() {
@@ -82,46 +83,81 @@ export function Sidebar() {
   const initials = user?.firstName?.[0]?.toUpperCase() ?? 'U'
 
   return (
-    <aside className="flex w-60 flex-shrink-0 flex-col border-r border-gray-800 bg-gray-900">
+    <aside className="relative z-10 flex w-60 flex-shrink-0 flex-col border-r border-white/5 bg-[#16161a]/80 backdrop-blur-md">
       {/* Logo */}
-      <div className="flex items-center gap-2.5 border-b border-gray-800 px-4 py-4">
-        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-violet-600">
+      <div className="flex items-center gap-2.5 border-b border-white/5 px-5 py-5">
+        <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-br from-rose-500 to-violet-600 shadow-lg shadow-violet-500/20">
           <Zap className="h-4 w-4 text-white" />
         </div>
-        <span className="text-base font-bold text-gray-100 tracking-tight">TeleVault</span>
+        <span className="text-base font-bold text-white tracking-tight">TeleVault</span>
       </div>
 
       {/* Primary nav */}
-      <nav className="px-2 pt-3 pb-1 space-y-0.5">
+      <nav className="px-3 pt-4 pb-2 space-y-1">
         {navItems.map(({ id, label, Icon, active, onClick }) => (
           <button
             key={id}
             onClick={onClick}
             className={clsx(
-              'flex w-full items-center gap-2.5 rounded-md px-3 py-2 text-sm transition-colors duration-150',
+              'relative flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition-all duration-200',
               active
-                ? 'bg-violet-600/20 text-violet-400 font-medium'
-                : 'text-gray-400 hover:bg-gray-800 hover:text-gray-200'
+                ? 'bg-white/[0.04] text-white font-medium shadow-inner shadow-white/5'
+                : 'text-gray-400 hover:bg-white/[0.02] hover:text-gray-200'
             )}
           >
-            <Icon className="h-4 w-4 flex-shrink-0" />
+            {active && (
+              <div className="absolute left-0 top-1/2 -translate-y-1/2 h-5 w-1 rounded-r-full bg-rose-400 shadow-[0_0_12px_rgba(251,113,133,0.8)]" />
+            )}
+            <Icon className={clsx("h-4 w-4 flex-shrink-0", active ? "text-rose-400" : "")} />
             {label}
           </button>
         ))}
       </nav>
 
-      <div className="my-2 mx-3 border-t border-gray-800" />
+      <div className="my-2 mx-4 border-t border-white/5" />
 
-      {/* MY DRIVE section */}
-      <div className="px-4 mb-1">
-        <span className="text-xs font-medium uppercase tracking-widest text-gray-500">
-          My Drive
-        </span>
+      {/* Folders / Tags pill toggle */}
+      <div style={{
+        margin: '12px 12px 8px',
+        display: 'grid',
+        gridTemplateColumns: '1fr 1fr',
+        background: 'rgba(255,255,255,0.06)',
+        borderRadius: 10,
+        padding: 3,
+      }}>
+        {(['folders', 'tags'] as const).map(tab => (
+          <button
+            key={tab}
+            onClick={() => setSidebarTab(tab)}
+            style={{
+              padding: '6px 0',
+              borderRadius: 8,
+              border: 'none',
+              cursor: 'pointer',
+              fontSize: 13, fontWeight: 600,
+              background: sidebarTab === tab
+                ? 'rgba(255,255,255,0.12)'
+                : 'transparent',
+              color: sidebarTab === tab
+                ? 'rgba(255,255,255,0.90)'
+                : 'rgba(255,255,255,0.35)',
+              transition: 'all 200ms ease',
+            }}
+          >
+            {tab === 'folders' ? 'Folders' : 'Tags'}
+          </button>
+        ))}
       </div>
 
-      {/* Folder tree (scrollable) */}
+      {/* Folder tree (scrollable) or Tags placeholder */}
       <div className="flex-1 overflow-y-auto">
-        <FolderTree />
+        {sidebarTab === 'folders' && <FolderTree />}
+        {sidebarTab === 'tags' && (
+          <div style={{ padding: '20px 16px', textAlign: 'center',
+            fontSize: 13, color: 'rgba(255,255,255,0.25)' }}>
+            Tags coming soon
+          </div>
+        )}
       </div>
 
       {/* Bottom section */}
