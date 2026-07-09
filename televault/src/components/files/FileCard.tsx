@@ -61,10 +61,10 @@ export function FileCard({
   return (
     <div
       className={clsx(
-        'group relative flex cursor-pointer flex-col overflow-hidden rounded-[20px] transition-all duration-200 border',
+        'group relative flex cursor-pointer flex-col overflow-hidden rounded-[20px] transition-all duration-200 ease-in-out border',
         selected
           ? 'border-rose-400 bg-rose-500/10'
-          : 'border-white/5 bg-white/5 hover:bg-white/10 hover:border-white/10 backdrop-blur-md'
+          : 'border-transparent bg-white/5 hover:bg-white/[0.08] hover:border-white/10 backdrop-blur-md'
       )}
       onClick={(e) => !isRenaming && onSelect(e.metaKey || e.ctrlKey, e.shiftKey)}
       onDoubleClick={() => !isRenaming && onDoubleClick()}
