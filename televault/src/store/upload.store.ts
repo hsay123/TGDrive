@@ -38,13 +38,13 @@ const checkAutoDismiss = (set: any, get: any, id: string, status: string) => {
       : ['done', 'error', 'cancelled'].includes(i.status)
   )
   if (allDone && queue.length > 0) {
+    // Auto-clear completed items after 3s, but keep the card visible
     setTimeout(() => {
       const currentQueue = get().queue
       const stillAllDone = currentQueue.every((i: UploadItem) =>
         ['done', 'error', 'cancelled'].includes(i.status)
       )
       if (stillAllDone && currentQueue.length > 0) {
-        set({ isVisible: false })
         setTimeout(() => {
           set((s: UploadStore) => ({
             queue: s.queue.filter((i) => i.status === 'uploading' || i.status === 'queued'),
@@ -57,7 +57,7 @@ const checkAutoDismiss = (set: any, get: any, id: string, status: string) => {
 
 export const useUploadStore = create<UploadStore>((set, get) => ({
   queue: [],
-  isVisible: false,
+  isVisible: true,  // always shown on the All Files page by default
 
   setVisible: (isVisible) => set({ isVisible }),
 

@@ -28,6 +28,7 @@ export function Toolbar() {
   const setViewMode = useUIStore((s) => s.setViewMode)
   const openModal = useUIStore((s) => s.openModal)
   const addToQueue = useUploadStore((s) => s.addToQueue)
+  const setUploadVisible = useUploadStore((s) => s.setVisible)
   const { isSyncing, push } = useSync()
 
   const [searchOpen, setSearchOpen] = useState(false)
@@ -44,10 +45,13 @@ export function Toolbar() {
       : breadcrumbs
 
   const handleUpload = async () => {
+    // Show the card immediately so the user sees the dropzone / "Browse" CTA
+    setUploadVisible(true)
+
     const result = await window.televault.system.openFilePicker()
     if (!result.success || !result.data?.length) {
       if (result.error) toast.error(result.error)
-      return
+      return // card stays open with the dropzone visible
     }
     addToQueue(
       result.data.map((f) => ({

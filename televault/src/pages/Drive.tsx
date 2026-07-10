@@ -8,7 +8,7 @@ import { FilePreview } from '../components/files/FilePreview'
 import { FolderCard } from '../components/files/FolderCard'
 import { FilesTable } from '../components/files/FilesTable'
 import { DropZone } from '../components/upload/DropZone'
-import { UploadQueue } from '../components/upload/UploadQueue'
+import { FloatingUploadCard } from '../components/upload/FloatingUploadCard'
 import { DownloadQueue } from '../components/download/DownloadQueue'
 import { Spinner } from '../components/shared/Spinner'
 import { ContextMenu } from '../components/files/ContextMenu'
@@ -299,7 +299,7 @@ export default function Drive() {
         <StatusBar />
       </div>
 
-      <UploadQueue />
+      <FloatingUploadCard />
       <DownloadQueue />
 
       <FilePreview
