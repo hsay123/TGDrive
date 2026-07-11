@@ -21,9 +21,18 @@ const DRAG_THRESHOLD = 5
 export function useDragSelect(
   cardRefs: React.RefObject<Map<string, HTMLElement>>
 ) {
-  const startPos = useRef<{ x: number; y: number } | null>(null)
-  const didDrag  = useRef(false)
-  const button   = useRef<number>(0)
+  const startPos        = useRef<{ x: number; y: number } | null>(null)
+  const didDrag         = useRef(false)
+  const button          = useRef<number>(0)
+  const animFrameId     = useRef<number | null>(null)
+
+  // ── OPTIMIZATION 1: Cache all card rects on mousedown ──────────────────────
+  // Populated once per drag — never calls getBoundingClientRect in onMouseMove
+  const cachedRects     = useRef<Map<string, BBox>>(new Map())
+
+  // ── OPTIMIZATION 3: Track last hit set to skip no-op store updates ──────────
+  const lastHitKey      = useRef<string>('')
+
   const [state, setState] = useState<DragSelectState>({ isDragging: false, marquee: null })
 
   // Capture-phase contextmenu suppressor — blocks popup after right-drag
@@ -32,7 +41,7 @@ export function useDragSelect(
       if (didDrag.current && button.current === 2) {
         e.preventDefault()
         e.stopPropagation()
-        didDrag.current = false // reset so next right-click shows menu normally
+        didDrag.current = false
       }
     }
     window.addEventListener('contextmenu', handler, true)
@@ -43,15 +52,29 @@ export function useDragSelect(
     if (e.button !== 0 && e.button !== 2) return
     const target = e.target as HTMLElement
     if (target.closest('[data-file-card]')) return
-
     if (e.button === 0) e.preventDefault()
 
     useFilesStore.getState().clearSelection()
     button.current   = e.button
     startPos.current = { x: e.clientX, y: e.clientY }
     didDrag.current  = false
+    lastHitKey.current = ''
+
+    // ── Cache every card's BBox exactly once ────────────────────────────────
+    // getBoundingClientRect() is safe here — only called on mousedown (not in rAF loop)
+    cachedRects.current.clear()
+    cardRefs.current?.forEach((el, id) => {
+      const cr = el.getBoundingClientRect()
+      cachedRects.current.set(id, {
+        left:   cr.left,
+        top:    cr.top,
+        right:  cr.right,
+        bottom: cr.bottom,
+      })
+    })
+
     setState({ isDragging: false, marquee: null })
-  }, [])
+  }, [cardRefs])
 
   const onMouseMove = useCallback((e: React.MouseEvent) => {
     if (!startPos.current) return
@@ -63,37 +86,63 @@ export function useDragSelect(
     const moved = Math.sqrt((cx - sx) ** 2 + (cy - sy) ** 2)
 
     if (moved < DRAG_THRESHOLD && !didDrag.current) return
-
     didDrag.current = true
 
-    const marquee: MarqueeRect = {
-      x: Math.min(sx, cx),
-      y: Math.min(sy, cy),
-      width: Math.abs(cx - sx),
-      height: Math.abs(cy - sy),
-    }
-    setState({ isDragging: true, marquee })
-
-    const mbox: BBox = {
-      left:   marquee.x,
-      top:    marquee.y,
-      right:  marquee.x + marquee.width,
-      bottom: marquee.y + marquee.height,
+    // ── OPTIMIZATION 2: Throttle via requestAnimationFrame ──────────────────
+    // Cancel any pending frame so we never queue up stale calculations
+    if (animFrameId.current !== null) {
+      cancelAnimationFrame(animFrameId.current)
     }
 
-    const hit: string[] = []
-    cardRefs.current?.forEach((el, id) => {
-      const cr = el.getBoundingClientRect()
-      if (rectsIntersect(mbox, { left: cr.left, top: cr.top, right: cr.right, bottom: cr.bottom })) {
-        hit.push(id)
+    // Snapshot coords for the rAF closure (avoids reading stale SyntheticEvent)
+    const snapCx = cx
+    const snapCy = cy
+    const snapSx = sx
+    const snapSy = sy
+
+    animFrameId.current = requestAnimationFrame(() => {
+      animFrameId.current = null
+
+      // 1 — Compute marquee rect
+      const marquee: MarqueeRect = {
+        x:      Math.min(snapSx, snapCx),
+        y:      Math.min(snapSy, snapCy),
+        width:  Math.abs(snapCx - snapSx),
+        height: Math.abs(snapCy - snapSy),
       }
-    })
 
-    useFilesStore.setState({ selectedIds: new Set(hit) })
-  }, [cardRefs])
+      setState({ isDragging: true, marquee })
+
+      const mbox: BBox = {
+        left:   marquee.x,
+        top:    marquee.y,
+        right:  marquee.x + marquee.width,
+        bottom: marquee.y + marquee.height,
+      }
+
+      // 2 — Intersect against CACHED rects (zero getBoundingClientRect calls)
+      const hit: string[] = []
+      cachedRects.current.forEach((bbox, id) => {
+        if (rectsIntersect(mbox, bbox)) hit.push(id)
+      })
+
+      // 3 — Skip store update if selection hasn't changed (avoid re-render)
+      const hitKey = hit.sort().join(',')
+      if (hitKey === lastHitKey.current) return
+      lastHitKey.current = hitKey
+
+      useFilesStore.setState({ selectedIds: new Set(hit) })
+    })
+  }, [])  // no deps — everything read via refs
 
   const onMouseUp = useCallback(() => {
+    // Cancel any pending animation frame
+    if (animFrameId.current !== null) {
+      cancelAnimationFrame(animFrameId.current)
+      animFrameId.current = null
+    }
     startPos.current = null
+    cachedRects.current.clear()
     setState({ isDragging: false, marquee: null })
   }, [])
 
