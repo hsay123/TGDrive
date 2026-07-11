@@ -57,15 +57,6 @@ export function FolderCard({
       {/* ── FOLDER ILLUSTRATION ── */}
       <div style={{ position: 'relative', width: 148, height: 112 }}>
 
-        {/* Glow shadow underneath */}
-        <div style={{
-          position: 'absolute',
-          bottom: -10, left: '50%',
-          transform: 'translateX(-50%)',
-          width: 160, height: 36,
-          background: 'radial-gradient(ellipse at 50% 100%, rgba(0,0,0,0.55) 0%, transparent 70%)',
-          pointerEvents: 'none', zIndex: 0,
-        }} />
 
         {/* PAPERS */}
         {papers.map((p, i) => (
