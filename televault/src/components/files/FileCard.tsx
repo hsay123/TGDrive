@@ -60,9 +60,9 @@ export function FileCard({
   return (
     <div
       className={clsx(
-        'group relative flex cursor-pointer flex-col overflow-hidden rounded-[20px] transition-all duration-200 ease-in-out border',
+        'group relative flex cursor-pointer flex-col overflow-hidden rounded-[20px] transition-all duration-200 ease-in-out border select-none outline-none',
         selected
-          ? 'border-purple-500/70 bg-white/[0.06] shadow-[0_0_18px_rgba(168,85,247,0.22)]'
+          ? 'border-purple-500 bg-purple-500/10 shadow-[0_0_15px_rgba(168,85,247,0.2)]'
           : 'border-transparent bg-white/5 hover:bg-white/[0.08] hover:border-white/10 backdrop-blur-md'
       )}
       onClick={(e) => !isRenaming && onSelect(e.metaKey || e.ctrlKey, e.shiftKey)}

@@ -60,7 +60,7 @@ export function FileGrid({ entries: entriesProp }: FileGridProps) {
       <div
         ref={containerRef}
         className="w-full relative"
-        style={{ userSelect: dragState.isDragging ? 'none' : undefined }}
+        style={{ userSelect: 'none', WebkitUserSelect: 'none' }}
         onMouseDown={onMouseDown}
         onMouseMove={onMouseMove}
         onMouseUp={onMouseUp}
