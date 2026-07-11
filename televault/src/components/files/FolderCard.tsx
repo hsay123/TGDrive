@@ -19,22 +19,22 @@ export function FolderCard({
   // Three paper sheets that fan out when folder opens
   const papers = [
     {
-      base:  { rotate: -5, x: -14, y: 0 },
-      open:  { rotate: -12, x: -38, y: -36 },
+      base: { rotate: -5, x: -14, y: 0 },
+      open: { rotate: -12, x: -38, y: -36 },
       bg: 'linear-gradient(155deg, #f9f9fb 0%, #e2e2e5 100%)',
       shadow: '0 4px 12px rgba(0,0,0,0.45), 0 1px 0 rgba(255,255,255,0.9) inset',
       z: 1,
     },
     {
-      base:  { rotate: 0, x: 0, y: -2 },
-      open:  { rotate: 0, x: 0, y: -46 },
+      base: { rotate: 0, x: 0, y: -2 },
+      open: { rotate: 0, x: 0, y: -46 },
       bg: 'linear-gradient(155deg, #ffffff 0%, #eaeaed 100%)',
       shadow: '0 4px 12px rgba(0,0,0,0.4), 0 1px 0 rgba(255,255,255,1) inset',
       z: 3,
     },
     {
-      base:  { rotate: 5, x: 14, y: 0 },
-      open:  { rotate: 12, x: 38, y: -34 },
+      base: { rotate: 5, x: 14, y: 0 },
+      open: { rotate: 12, x: 38, y: -34 },
       bg: 'linear-gradient(155deg, #f3f3f6 0%, #d5d5d8 100%)',
       shadow: '0 4px 12px rgba(0,0,0,0.4), 0 1px 0 rgba(255,255,255,0.8) inset',
       z: 0,
@@ -57,6 +57,15 @@ export function FolderCard({
       {/* ── FOLDER ILLUSTRATION ── */}
       <div style={{ position: 'relative', width: 148, height: 112 }}>
 
+        {/* Glow shadow underneath */}
+        <div style={{
+          position: 'absolute',
+          bottom: -10, left: '50%',
+          transform: 'translateX(-50%)',
+          width: 160, height: 36,
+          background: 'radial-gradient(ellipse at 50% 100%, rgba(0,0,0,0.55) 0%, transparent 70%)',
+          pointerEvents: 'none', zIndex: 0,
+        }} />
 
         {/* PAPERS */}
         {papers.map((p, i) => (
