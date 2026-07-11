@@ -235,8 +235,8 @@ export default function Drive() {
                             return (
                               <FolderCard
                                 key={folder.id}
-                                folder={actualFolder}
-                                selected={selectedIds.has(folder.id)}
+                                name={actualFolder?.name ?? folder.name}
+                                fileCount={actualFolder?.fileCount ?? (folder as any).fileCount ?? 0}
                                 onClick={() => selectFile(folder.id, false)}
                                 onDoubleClick={() => setPath(folder.path)}
                                 onContextMenu={(e) => {
