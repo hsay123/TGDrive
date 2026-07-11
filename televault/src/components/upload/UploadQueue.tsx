@@ -156,8 +156,8 @@ function UploadItemRow({ item }: { item: UploadItem }) {
             {statusLabels[item.status]}
           </span>
           {isUploading && <Loader2 className="h-3.5 w-3.5 text-violet-400 animate-spin" />}
-          {item.status === 'done'  && <Check className="h-3.5 w-3.5 text-teal-400" />}
-          {item.status === 'error' && <X     className="h-3.5 w-3.5 text-red-400"  />}
+          {item.status === 'done' && <Check className="h-3.5 w-3.5 text-teal-400" />}
+          {item.status === 'error' && <X className="h-3.5 w-3.5 text-red-400" />}
           {isActive && (
             <button
               onClick={handleCancel}

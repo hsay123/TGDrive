@@ -169,155 +169,156 @@ export default function Drive() {
         <Sidebar />
 
         <div className="flex min-w-0 flex-1 flex-col">
-        <Toolbar />
+          <Toolbar />
 
-        {/* Channel setup banner */}
-        {channelBanner === 'initializing' && (
-          <div className="flex items-center gap-3 border-b border-amber-800/40 bg-amber-950/40 px-4 py-2.5 text-sm">
-            <Spinner size="sm" />
-            <span className="text-amber-300">
-              Setting up your TeleVault storage on Telegram — this takes a few seconds…
-            </span>
-          </div>
-        )}
-        {channelBanner === 'error' && (
-          <div className="flex items-center justify-between border-b border-red-800/40 bg-red-950/40 px-4 py-2.5 text-sm">
-            <span className="text-red-300">{channelError}</span>
-            <button
-              className="text-xs text-red-400 hover:text-red-200 underline"
-              onClick={() => setChannelBanner(null)}
-            >
-              Dismiss
-            </button>
-          </div>
-        )}
-
-        <main className="relative flex-1 overflow-hidden">
-          {isLoading && searchQuery.length <= 1 ? (
-            <div className="flex h-full items-center justify-center">
-              <Spinner size="lg" />
+          {/* Channel setup banner */}
+          {channelBanner === 'initializing' && (
+            <div className="flex items-center gap-3 border-b border-amber-800/40 bg-amber-950/40 px-4 py-2.5 text-sm">
+              <Spinner size="sm" />
+              <span className="text-amber-300">
+                Setting up your TeleVault storage on Telegram — this takes a few seconds…
+              </span>
             </div>
-          ) : (
-            <div className="h-full flex flex-col">
-              {searchQuery.length > 1 && (
-                <div className="border-b border-gray-800 px-4 py-2 text-xs text-gray-500 flex items-center gap-2">
-                  <span className="text-violet-400 font-medium">
-                    {searchResults.length} result{searchResults.length !== 1 ? 's' : ''}
-                  </span>
-                  <span>for</span>
-                  <span className="text-gray-300">"{searchQuery}"</span>
-                  <button
-                    onClick={() => setSearchQuery('')}
-                    className="ml-auto text-gray-600 hover:text-gray-300 transition-colors text-xs"
-                  >
-                    Clear search
-                  </button>
-                </div>
-              )}
-
-              {showSplitLayout ? (
-                /* ===== INSTUDY-STYLE SPLIT LAYOUT ===== */
-                <div style={{ padding: '28px 28px', overflowY: 'auto', flex: 1 }}>
-
-                  {/* FOLDERS SECTION */}
-                  {folderEntries.length > 0 && (
-                    <section style={{ marginBottom: 40 }}>
-                      <h2 style={sectionHeading}>Folders</h2>
-                      <div style={{
-                        display: 'flex',
-                        gap: 16,
-                        flexWrap: 'wrap',
-                      }}>
-                        {folderEntries.map(folder => {
-                          const treeFolder = findFolderInTree(tree, folder.id)
-                          const actualFolder = treeFolder || folder
-                          return (
-                            <FolderCard
-                              key={folder.id}
-                              folder={actualFolder}
-                              selected={selectedIds.has(folder.id)}
-                              onClick={() => selectFile(folder.id, false)}
-                              onDoubleClick={() => setPath(folder.path)}
-                              onContextMenu={(e) => {
-                                e.preventDefault()
-                                setContextMenu({ x: e.clientX, y: e.clientY, entry: folder })
-                              }}
-                            />
-                          )
-                        })}
-                      </div>
-                    </section>
-                  )}
-
-                  {/* FILES SECTION — grid view */}
-                  {fileEntries.length > 0 && (
-                    <section>
-                      <h2 style={sectionHeading}>Files</h2>
-                      <FileGrid entries={fileEntries} />
-                    </section>
-                  )}
-
-                  {/* EMPTY STATE */}
-                  {folderEntries.length === 0 && fileEntries.length === 0 && (
-                    <div style={{
-                      display: 'flex', flexDirection: 'column',
-                      alignItems: 'center', justifyContent: 'center',
-                      height: '55%', gap: 14,
-                    }}>
-                      <div style={{
-                        width: 64, height: 64, borderRadius: 18,
-                        background: 'rgba(255,255,255,0.04)',
-                        border: '1px solid rgba(255,255,255,0.08)',
-                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        fontSize: 28,
-                      }}>📂</div>
-                      <p style={{ fontSize: 15, fontWeight: 600, color: 'rgba(255,255,255,0.4)' }}>
-                        This folder is empty
-                      </p>
-                      <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.2)' }}>
-                        Drop files here or click Upload
-                      </p>
-                    </div>
-                  )}
-                </div>
-              ) : (
-                /* ===== LEGACY VIEW (list mode or search) ===== */
-                <div className="flex-1 overflow-hidden">
-                  {viewMode === 'grid' ? (
-                    <FileGrid entries={displayEntries} />
-                  ) : (
-                    <FileList entries={displayEntries} />
-                  )}
-                </div>
-              )}
+          )}
+          {channelBanner === 'error' && (
+            <div className="flex items-center justify-between border-b border-red-800/40 bg-red-950/40 px-4 py-2.5 text-sm">
+              <span className="text-red-300">{channelError}</span>
+              <button
+                className="text-xs text-red-400 hover:text-red-200 underline"
+                onClick={() => setChannelBanner(null)}
+              >
+                Dismiss
+              </button>
             </div>
           )}
 
-          <DropZone />
-        </main>
+          <main className="relative flex-1 overflow-hidden">
+            {isLoading && searchQuery.length <= 1 ? (
+              <div className="flex h-full items-center justify-center">
+                <Spinner size="lg" />
+              </div>
+            ) : (
+              <div className="h-full flex flex-col">
+                {searchQuery.length > 1 && (
+                  <div className="border-b border-gray-800 px-4 py-2 text-xs text-gray-500 flex items-center gap-2">
+                    <span className="text-violet-400 font-medium">
+                      {searchResults.length} result{searchResults.length !== 1 ? 's' : ''}
+                    </span>
+                    <span>for</span>
+                    <span className="text-gray-300">"{searchQuery}"</span>
+                    <button
+                      onClick={() => setSearchQuery('')}
+                      className="ml-auto text-gray-600 hover:text-gray-300 transition-colors text-xs"
+                    >
+                      Clear search
+                    </button>
+                  </div>
+                )}
 
-        <StatusBar />
-      </div>
+                {showSplitLayout ? (
+                  /* ===== INSTUDY-STYLE SPLIT LAYOUT ===== */
+                  <div style={{ padding: '28px 28px', overflowY: 'auto', flex: 1 }}>
 
-      <FloatingUploadCard />
-      <DownloadQueue />
+                    {/* FOLDERS SECTION */}
+                    {folderEntries.length > 0 && (
+                      <section style={{ marginBottom: 40 }}>
+                        <h2 style={sectionHeading}>Folders</h2>
+                        <div style={{
+                          display: 'flex',
+                          gap: 40,
+                          flexWrap: 'wrap',
+                          paddingBottom: 8,
+                        }}>
+                          {folderEntries.map(folder => {
+                            const treeFolder = findFolderInTree(tree, folder.id)
+                            const actualFolder = treeFolder || folder
+                            return (
+                              <FolderCard
+                                key={folder.id}
+                                folder={actualFolder}
+                                selected={selectedIds.has(folder.id)}
+                                onClick={() => selectFile(folder.id, false)}
+                                onDoubleClick={() => setPath(folder.path)}
+                                onContextMenu={(e) => {
+                                  e.preventDefault()
+                                  setContextMenu({ x: e.clientX, y: e.clientY, entry: folder })
+                                }}
+                              />
+                            )
+                          })}
+                        </div>
+                      </section>
+                    )}
 
-      <FilePreview
-        entry={previewEntry}
-        onClose={() => setPreviewEntryId(null)}
-      />
+                    {/* FILES SECTION — grid view */}
+                    {fileEntries.length > 0 && (
+                      <section>
+                        <h2 style={sectionHeading}>Files</h2>
+                        <FileGrid entries={fileEntries} />
+                      </section>
+                    )}
 
-      <MoveToModal />
+                    {/* EMPTY STATE */}
+                    {folderEntries.length === 0 && fileEntries.length === 0 && (
+                      <div style={{
+                        display: 'flex', flexDirection: 'column',
+                        alignItems: 'center', justifyContent: 'center',
+                        height: '55%', gap: 14,
+                      }}>
+                        <div style={{
+                          width: 64, height: 64, borderRadius: 18,
+                          background: 'rgba(255,255,255,0.04)',
+                          border: '1px solid rgba(255,255,255,0.08)',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          fontSize: 28,
+                        }}>📂</div>
+                        <p style={{ fontSize: 15, fontWeight: 600, color: 'rgba(255,255,255,0.4)' }}>
+                          This folder is empty
+                        </p>
+                        <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.2)' }}>
+                          Drop files here or click Upload
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  /* ===== LEGACY VIEW (list mode or search) ===== */
+                  <div className="flex-1 overflow-hidden">
+                    {viewMode === 'grid' ? (
+                      <FileGrid entries={displayEntries} />
+                    ) : (
+                      <FileList entries={displayEntries} />
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
 
-      {/* Context menu for folder cards & file table rows */}
-      {contextMenu && (
-        <ContextMenu
-          x={contextMenu.x}
-          y={contextMenu.y}
-          entry={contextMenu.entry}
-          onClose={() => setContextMenu(null)}
+            <DropZone />
+          </main>
+
+          <StatusBar />
+        </div>
+
+        <FloatingUploadCard />
+        <DownloadQueue />
+
+        <FilePreview
+          entry={previewEntry}
+          onClose={() => setPreviewEntryId(null)}
         />
-      )}
+
+        <MoveToModal />
+
+        {/* Context menu for folder cards & file table rows */}
+        {contextMenu && (
+          <ContextMenu
+            x={contextMenu.x}
+            y={contextMenu.y}
+            entry={contextMenu.entry}
+            onClose={() => setContextMenu(null)}
+          />
+        )}
       </div>
     </div>
   )
