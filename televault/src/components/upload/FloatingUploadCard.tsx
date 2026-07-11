@@ -165,8 +165,9 @@ function UploadRow({ item }: { item: UploadItem }) {
 
         <span
           className={clsx(
-            'flex-1 min-w-0 truncate text-[12px] leading-snug',
-            isCancelled ? 'line-through text-white/25' : isDone ? 'text-white/50' : 'text-white/80'
+            'flex-1 min-w-0 truncate text-[12px] leading-snug text-neutral-900 dark:text-neutral-100',
+            isCancelled && 'line-through opacity-40',
+            isDone && 'opacity-60'
           )}
           title={item.name}
         >
@@ -188,7 +189,7 @@ function UploadRow({ item }: { item: UploadItem }) {
           {isActive && (
             <button
               onClick={handleCancel}
-              className="w-4 h-4 rounded flex items-center justify-center text-white/20 hover:text-red-400 hover:bg-red-500/10 transition-colors ml-0.5"
+              className="w-4 h-4 rounded flex items-center justify-center text-neutral-400 dark:text-white/20 hover:text-red-400 hover:bg-red-500/10 transition-colors ml-0.5"
               title="Cancel"
             >
               <X size={10} />
@@ -201,7 +202,7 @@ function UploadRow({ item }: { item: UploadItem }) {
       {(isUploading || item.status === 'queued') && (
         <div className="mt-1.5 ml-8">
           {/* Track */}
-          <div className="w-full h-[3px] rounded-full bg-black/30 overflow-hidden">
+          <div className="w-full h-[3px] rounded-full bg-neutral-200 dark:bg-black/30 overflow-hidden">
             <div
               className="h-full rounded-full bg-gradient-to-r from-violet-600 to-violet-400 transition-all duration-300 ease-out relative overflow-hidden"
               style={{ width: `${item.progress}%` }}
@@ -216,7 +217,7 @@ function UploadRow({ item }: { item: UploadItem }) {
       )}
 
       {/* Bottom row: size / speed / ETA / error */}
-      <div className="flex items-center justify-between mt-1 ml-8 text-[10px] text-white/30">
+      <div className="flex items-center justify-between mt-1 ml-8 text-[10px] text-neutral-500 dark:text-white/30">
         <span>
           {isUploading && bytesUploaded > 0
             ? `${formatBytes(bytesUploaded)} / ${formatBytes(item.size)}`
@@ -230,7 +231,7 @@ function UploadRow({ item }: { item: UploadItem }) {
           <span className="flex items-center gap-0.5 text-violet-300/80">
             <Zap size={8} />
             {formatBytes(speed)}/s
-            {eta !== null && <span className="text-white/25 ml-0.5">· {formatETA(eta)}</span>}
+            {eta !== null && <span className="text-neutral-500 dark:text-white/25 ml-0.5">· {formatETA(eta)}</span>}
           </span>
         ) : (
           <span>{Math.round(item.progress)}%</span>
@@ -256,7 +257,7 @@ function InlineDropzone({
         'w-full mx-3 mb-3 mt-1 rounded-[16px] border border-dashed transition-all duration-200 flex flex-col items-center justify-center gap-2.5 py-7 cursor-pointer',
         isDraggingIn
           ? 'border-violet-500/60 bg-violet-500/10'
-          : 'border-white/[0.12] bg-white/[0.02] hover:border-violet-500/40 hover:bg-violet-500/[0.05]'
+          : 'border-neutral-300 dark:border-white/[0.12] bg-neutral-50/50 dark:bg-white/[0.02] hover:border-violet-400 dark:hover:border-violet-500/40 hover:bg-violet-50/80 dark:hover:bg-violet-500/[0.05]'
       )}
       style={{ width: 'calc(100% - 1.5rem)' }}
     >
@@ -265,20 +266,20 @@ function InlineDropzone({
           'w-10 h-10 rounded-[12px] flex items-center justify-center transition-all duration-200',
           isDraggingIn
             ? 'bg-violet-500/20 border border-violet-500/30'
-            : 'bg-white/[0.05] border border-white/[0.08]'
+            : 'bg-neutral-100 dark:bg-white/[0.05] border border-neutral-200 dark:border-white/[0.08]'
         )}
       >
         <UploadCloud
           size={20}
           className={clsx(
             'transition-colors duration-200',
-            isDraggingIn ? 'text-violet-400' : 'text-white/40'
+            isDraggingIn ? 'text-violet-400' : 'text-neutral-400 dark:text-white/40'
           )}
         />
       </div>
       <div className="text-center">
-        <p className="text-[12px] font-medium text-white/50">Drag & drop files here</p>
-        <p className="text-[10px] text-white/25 mt-0.5">or click to browse</p>
+        <p className="text-[12px] font-medium text-neutral-700 dark:text-white/50">Drag & drop files here</p>
+        <p className="text-[10px] text-neutral-500 dark:text-white/25 mt-0.5">or click to browse</p>
       </div>
     </button>
   )
@@ -386,13 +387,13 @@ export function FloatingUploadCard() {
           ) : (
             <Check size={14} className="text-teal-400 flex-shrink-0" />
           )}
-          <span className="text-[13px] font-medium text-white/70">
+          <span className="text-[13px] font-medium text-neutral-900 dark:text-white/70">
             {activeCount > 0
               ? `${activeCount} upload${activeCount !== 1 ? 's' : ''}…`
               : 'Uploads complete'}
           </span>
-          <span className="text-[11px] text-white/30">{overallProgress}%</span>
-          <ChevronUp size={12} className="text-white/30 ml-0.5" />
+          <span className="text-[11px] text-neutral-500 dark:text-white/30">{overallProgress}%</span>
+          <ChevronUp size={12} className="text-neutral-400 dark:text-white/30 ml-0.5" />
         </button>
       </div>
     )
@@ -412,21 +413,9 @@ export function FloatingUploadCard() {
       onDragOver={handleCardDragOver}
       onDrop={handleCardDrop}
     >
-      {/* Glass card */}
+      {/* Liquid glass card */}
       <div
-        className="rounded-[28px] overflow-hidden"
-        style={{
-          background: 'linear-gradient(135deg, rgba(26,26,29,0.62) 0%, rgba(15,15,17,0.42) 100%)',
-          backdropFilter: 'blur(22px)',
-          WebkitBackdropFilter: 'blur(22px)',
-          border: '1px solid',
-          borderColor: 'rgba(255,255,255,0.08)',
-          borderTopColor: 'rgba(255,255,255,0.15)',
-          borderLeftColor: 'rgba(255,255,255,0.09)',
-          borderRightColor: 'rgba(0,0,0,0.22)',
-          borderBottomColor: 'rgba(0,0,0,0.42)',
-          boxShadow: '0 20px 40px rgba(0,0,0,0.52), 0 1px 0 rgba(255,255,255,0.06) inset',
-        }}
+        className="rounded-[28px] overflow-hidden bg-white/70 dark:bg-neutral-900/60 backdrop-blur-2xl border border-black/[0.08] dark:border-white/[0.08] border-t-white/80 dark:border-t-white/20 shadow-xl dark:shadow-[0_20px_40px_rgba(0,0,0,0.52)]"
       >
         {/* ── Header ── */}
         <div className="flex items-center justify-between px-4 pt-4 pb-3">
@@ -440,9 +429,9 @@ export function FloatingUploadCard() {
               <UploadCloud size={14} className="text-violet-400" />
             </button>
             <div>
-              <p className="text-[13px] font-semibold text-white/90 leading-none">Upload Files</p>
+              <p className="text-[13px] font-semibold text-neutral-900 dark:text-white/90 leading-none">Upload Files</p>
               {activeCount > 0 && (
-                <p className="text-[10px] text-white/35 mt-0.5 leading-none">
+                <p className="text-[10px] text-neutral-500 dark:text-white/35 mt-0.5 leading-none">
                   {activeCount} active · {overallProgress}%
                 </p>
               )}
@@ -454,7 +443,7 @@ export function FloatingUploadCard() {
             {queue.length > 0 && (
               <button
                 onClick={clearDone}
-                className="text-[10px] text-white/25 hover:text-white/50 px-2 py-1 rounded-lg hover:bg-white/[0.05] transition-all"
+                className="text-[10px] text-neutral-500 dark:text-white/25 hover:text-neutral-900 dark:hover:text-white/50 px-2 py-1 rounded-lg hover:bg-black/[0.05] dark:hover:bg-white/[0.05] transition-all"
               >
                 Clear done
               </button>
@@ -462,7 +451,7 @@ export function FloatingUploadCard() {
             {queue.length > 0 && (
               <button
                 onClick={() => setMinimized(true)}
-                className="w-6 h-6 rounded-lg flex items-center justify-center text-white/25 hover:text-white/50 hover:bg-white/[0.05] transition-all"
+                className="w-6 h-6 rounded-lg flex items-center justify-center text-neutral-500 dark:text-white/25 hover:text-neutral-900 dark:hover:text-white/50 hover:bg-black/[0.05] dark:hover:bg-white/[0.05] transition-all"
                 title="Minimize"
               >
                 <ChevronDown size={12} />
@@ -470,7 +459,7 @@ export function FloatingUploadCard() {
             )}
             <button
               onClick={() => setVisible(false)}
-              className="w-6 h-6 rounded-lg flex items-center justify-center text-white/25 hover:text-white/50 hover:bg-white/[0.05] transition-all"
+              className="w-6 h-6 rounded-lg flex items-center justify-center text-neutral-500 dark:text-white/25 hover:text-red-500 dark:hover:text-white/50 hover:bg-red-50 dark:hover:bg-white/[0.05] transition-all"
               title="Close"
             >
               <X size={12} />
@@ -479,7 +468,7 @@ export function FloatingUploadCard() {
         </div>
 
         {/* ── Divider ── */}
-        <div className="h-px bg-gradient-to-r from-transparent via-white/[0.07] to-transparent mx-3" />
+        <div className="h-px bg-gradient-to-r from-transparent via-neutral-200 dark:via-white/[0.07] to-transparent mx-3" />
 
         {/* ── Content ── */}
         <div className="pt-3">
@@ -494,7 +483,7 @@ export function FloatingUploadCard() {
           {/* Upload queue list */}
           {!showDropzone && (
             <>
-              <div className="max-h-[280px] overflow-y-auto overflow-x-hidden divide-y divide-white/[0.05] scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent">
+              <div className="max-h-[280px] overflow-y-auto overflow-x-hidden divide-y divide-neutral-100 dark:divide-white/[0.05] scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent">
                 {queue.map((item) => (
                   <UploadRow key={item.id} item={item} />
                 ))}
@@ -504,7 +493,7 @@ export function FloatingUploadCard() {
               <div className="px-3 pb-3 pt-2.5">
                 <button
                   onClick={handleBrowse}
-                  className="w-full flex items-center justify-center gap-2 rounded-[14px] py-2 text-[11px] font-medium text-white/35 hover:text-white/60 border border-dashed border-white/[0.08] hover:border-white/[0.15] hover:bg-white/[0.03] transition-all duration-150"
+                  className="w-full flex items-center justify-center gap-2 rounded-[14px] py-2 text-[11px] font-medium text-neutral-500 dark:text-white/35 hover:text-neutral-900 dark:hover:text-white/60 border border-dashed border-neutral-300 dark:border-white/[0.08] hover:border-violet-400 dark:hover:border-white/[0.15] hover:bg-violet-50/50 dark:hover:bg-white/[0.03] transition-all duration-150"
                 >
                   <FolderOpen size={12} />
                   Add more files

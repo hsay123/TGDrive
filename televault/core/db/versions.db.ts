@@ -55,8 +55,9 @@ export function getNextVersionNum(fileId: string): number {
     .prepare(
       'SELECT COALESCE(MAX(version_num), 0) AS max_version FROM versions WHERE file_id = ?'
     )
-    .get(fileId) as { max_version: number }
-  return row.max_version + 1
+    .get(fileId) as { max_version: number | null } | undefined
+  // Guard against null/undefined — always returns a valid integer >= 1
+  return ((row?.max_version) ?? 0) + 1
 }
 
 export function archiveCurrentVersion(fileId: string, label?: string): string {
@@ -64,15 +65,32 @@ export function archiveCurrentVersion(fileId: string, label?: string): string {
   const file = getFileById(fileId)
   if (!file) throw new Error('File not found')
   const chunks = getChunksByFileId(fileId)
+
+  // Always compute version_num before insert — never pass undefined
   const versionNum = getNextVersionNum(fileId)
 
-  const version = createVersion({ file_id: fileId, version_num: versionNum, size: file.size, uploaded_at: file.updated_at, label: label ?? null })
+  // Ensure uploaded_at is always a valid integer — fall back to now if null
+  const uploadedAt = file.updated_at ?? file.uploaded_at ?? Date.now()
+
+  // Use named params + explicit column list to prevent NOT NULL violations
+  const versionId = uuidv4()
+  db.prepare(`
+    INSERT INTO versions (id, file_id, version_num, size, uploaded_at, label)
+    VALUES (@id, @file_id, @version_num, @size, @uploaded_at, @label)
+  `).run({
+    id: versionId,
+    file_id: fileId,
+    version_num: versionNum,
+    size: file.size,
+    uploaded_at: uploadedAt,
+    label: label ?? null,
+  })
 
   for (const c of chunks) {
     db.prepare('INSERT INTO version_chunks (id, version_id, chunk_index, message_id, channel_id, size) VALUES (?, ?, ?, ?, ?, ?)')
-      .run(uuidv4(), version.id, c.chunk_index, c.message_id, c.channel_id, c.size)
+      .run(uuidv4(), versionId, c.chunk_index, c.message_id, c.channel_id, c.size)
   }
-  return version.id
+  return versionId
 }
 
 export function restoreVersion(versionId: string): void {

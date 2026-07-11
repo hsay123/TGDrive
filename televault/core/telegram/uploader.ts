@@ -186,7 +186,12 @@ export async function uploadFile(
     const normalizedDestPath = destPath.startsWith('/') ? destPath : `/${destPath}`
     const existing = getFileByPath(normalizedDestPath)
     if (existing) {
-      archiveCurrentVersion(existing.id)
+      try {
+        archiveCurrentVersion(existing.id)
+      } catch (err) {
+        // Non-fatal: version archival failed, upload still proceeds
+        console.error('[uploader] version archive failed (non-fatal):', err)
+      }
       deleteChunksByFileId(existing.id)
     }
 

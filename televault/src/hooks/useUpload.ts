@@ -12,62 +12,70 @@ function formatBytes(bytes: number): string {
 }
 
 export function useUpload() {
-  const queue = useUploadStore((s) => s.queue)
-  const markUploading = useUploadStore((s) => s.markUploading)
-  const updateProgress = useUploadStore((s) => s.updateProgress)
-  const markDone = useUploadStore((s) => s.markDone)
-  const markError = useUploadStore((s) => s.markError)
-  const markCancelled = useUploadStore((s) => s.markCancelled)
-  const refreshFolder = useFilesStore((s) => s.refreshFolder)
-  const loadTree = useTreeStore((s) => s.loadTree)
-  const processingRef = useRef<Set<string>>(new Set())
+  // ── Select only primitives from the store to avoid referential re-renders ──
+  const queueLength = useUploadStore((s) => s.queue.length)
+  const hasQueued   = useUploadStore((s) => s.queue.some((i) => i.status === 'queued'))
 
+  // Keep mutable refs for store actions — these never change identity
+  const markUploading   = useRef(useUploadStore.getState().markUploading)
+  const updateProgress  = useRef(useUploadStore.getState().updateProgress)
+  const markDone        = useRef(useUploadStore.getState().markDone)
+  const markError       = useRef(useUploadStore.getState().markError)
+  const markCancelled   = useRef(useUploadStore.getState().markCancelled)
+  const refreshFolder   = useRef(useFilesStore.getState().refreshFolder)
+  const loadTree        = useRef(useTreeStore.getState().loadTree)
+  const processingRef   = useRef<Set<string>>(new Set())
+
+  // ── Subscribe to progress events once on mount ───────────────────────────
   useEffect(() => {
     const unsub = window.televault.files.onUploadProgress(({ localPath, percent }) => {
       const item = useUploadStore
         .getState()
         .queue.find((q) => q.localPath === localPath && q.status === 'uploading')
       if (item) {
-        updateProgress(item.id, percent)
+        updateProgress.current(item.id, percent)
       }
     })
     return unsub
-  }, [updateProgress])
+  }, []) // empty deps — runs once
 
+  // ── Process queue whenever a new item enters 'queued' status ─────────────
   useEffect(() => {
+    if (!hasQueued) return
+
     const processQueue = async () => {
-      const pending = queue.filter(
-        (item) => item.status === 'queued' && !processingRef.current.has(item.id)
-      )
+      // Read queue snapshot directly from store — avoids stale closure
+      const pending = useUploadStore
+        .getState()
+        .queue.filter((item) => item.status === 'queued' && !processingRef.current.has(item.id))
 
       for (const item of pending) {
         processingRef.current.add(item.id)
-        markUploading(item.id)
+        markUploading.current(item.id)
 
         try {
           const result = await window.televault.files.upload(
             item.localPath,
             item.destPath,
             item.encrypt,
-            item.id   // uploadId — used by main process for cancellation
+            item.id
           )
           if (result.success) {
-            markDone(item.id)
-            await refreshFolder()
-            await loadTree()
+            markDone.current(item.id)
+            await refreshFolder.current()
+            await loadTree.current()
           } else if ((result as any).cancelled) {
-            markCancelled(item.id)
+            markCancelled.current(item.id)
           } else {
             const errorMsg = result.error ?? 'Upload failed'
-            handleUploadError(errorMsg, item.id, markError)
+            handleUploadError(errorMsg, item.id, markError.current)
           }
         } catch (error) {
           const message = error instanceof Error ? error.message : 'Upload failed'
-          // AbortError = cancelled, not a user-visible failure
           if (error instanceof DOMException && error.name === 'AbortError') {
-            markCancelled(item.id)
+            markCancelled.current(item.id)
           } else {
-            handleUploadError(message, item.id, markError)
+            handleUploadError(message, item.id, markError.current)
           }
         } finally {
           processingRef.current.delete(item.id)
@@ -75,10 +83,8 @@ export function useUpload() {
       }
     }
 
-    if (queue.some((item) => item.status === 'queued')) {
-      processQueue()
-    }
-  }, [queue, markUploading, markDone, markError, markCancelled, refreshFolder, loadTree])
+    processQueue()
+  }, [hasQueued, queueLength]) // primitives only — no object refs in deps
 }
 
 function handleUploadError(

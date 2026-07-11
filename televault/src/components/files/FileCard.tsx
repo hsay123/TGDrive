@@ -63,7 +63,7 @@ export function FileCard({
         'group relative flex cursor-pointer flex-col overflow-hidden rounded-[20px] transition-all duration-200 ease-in-out border select-none outline-none',
         selected
           ? 'border-purple-500 bg-purple-500/10 shadow-[0_0_15px_rgba(168,85,247,0.2)]'
-          : 'border-transparent bg-white/5 hover:bg-white/[0.08] hover:border-white/10 backdrop-blur-md'
+          : 'border-transparent bg-black/[0.04] dark:bg-white/5 hover:bg-black/[0.07] dark:hover:bg-white/[0.08] hover:border-black/[0.08] dark:hover:border-white/10 backdrop-blur-md'
       )}
       onClick={(e) => !isRenaming && onSelect(e.metaKey || e.ctrlKey, e.shiftKey)}
       onDoubleClick={() => !isRenaming && onDoubleClick()}
@@ -92,7 +92,7 @@ export function FileCard({
             }}
           />
         ) : (
-          <div className="h-full w-full flex items-center justify-center rounded-xl bg-black/20 border border-white/5 shadow-inner">
+          <div className="h-full w-full flex items-center justify-center rounded-xl bg-black/[0.06] dark:bg-black/20 border border-black/[0.06] dark:border-white/5 shadow-inner">
             <FileIcon mime={entry.mimeType} size="lg" />
           </div>
         )}
@@ -117,7 +117,7 @@ export function FileCard({
           />
         ) : (
           <div className="flex flex-col items-center">
-            <p className="w-full text-[13px] font-medium text-gray-200 truncate">
+            <p className="w-full text-[13px] font-medium text-neutral-900 dark:text-gray-200 truncate">
               {entry.name}
             </p>
             {/* Optional secondary info like size or lock can go here if needed, but keeping it clean per requirements */}
