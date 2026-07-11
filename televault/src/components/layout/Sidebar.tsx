@@ -93,16 +93,16 @@ export function Sidebar() {
       <div className="flex items-center gap-2.5 px-5 py-5" style={{ borderBottom: '1px solid var(--border)' }}>
         <Link to="/" className="flex items-center">
           {/* Light Mode Logo: Visible by default, hidden in dark mode */}
-          <img 
-            src={blackLogo} 
-            alt="TeleVault" 
-            className="h-8 w-auto object-contain block dark:hidden" 
+          <img
+            src={blackLogo}
+            alt="TeleVault"
+            className="h-8 w-auto object-contain block dark:hidden"
           />
           {/* Dark Mode Logo: Hidden by default, visible in dark mode */}
-          <img 
-            src={whiteLogo} 
-            alt="TeleVault" 
-            className="h-8 w-auto object-contain hidden dark:block" 
+          <img
+            src={whiteLogo}
+            alt="TeleVault"
+            className="h-8 w-auto object-contain hidden dark:block"
           />
         </Link>
       </div>
@@ -153,8 +153,10 @@ export function Sidebar() {
       <div className="flex-1 overflow-y-auto">
         {sidebarTab === 'folders' && <FolderTree />}
         {sidebarTab === 'tags' && (
-          <div style={{ padding: '20px 16px', textAlign: 'center',
-            fontSize: 13, color: 'var(--muted)' }}>
+          <div style={{
+            padding: '20px 16px', textAlign: 'center',
+            fontSize: 13, color: 'var(--muted)'
+          }}>
             Tags coming soon
           </div>
         )}
@@ -181,8 +183,8 @@ export function Sidebar() {
                     usedPercent > 90
                       ? 'bg-red-500'
                       : usedPercent > 70
-                      ? 'bg-amber-500'
-                      : 'bg-violet-500'
+                        ? 'bg-amber-500'
+                        : 'bg-violet-500'
                   )}
                   style={{ width: `${Math.max(usedPercent, 0.5)}%` }}
                 />
