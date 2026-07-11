@@ -19,12 +19,13 @@ import { useUpload } from '../hooks/useUpload'
 import { useDownloadListener } from '../hooks/useDownload'
 import { useSearch } from '../hooks/useSearch'
 import { MoveToModal } from '../components/folders/MoveToModal'
+import { useThemeStore } from '../store/theme.store'
 import type { VFSEntry } from '../types'
 
 const sectionHeading: React.CSSProperties = {
   fontSize: 22,
   fontWeight: 700,
-  color: 'rgba(255,255,255,0.90)',
+  color: 'var(--fg)',
   letterSpacing: '-0.3px',
   marginBottom: 18,
 }
@@ -126,6 +127,24 @@ export default function Drive() {
     [clearSelection, setPreviewEntryId, searchQuery, setSearchQuery, selectedIds, previewEntryId, currentPath, loadFolder]
   )
 
+  // Keyboard shortcut: T = toggle theme from screen center
+  useEffect(() => {
+    function onThemeKey(e: KeyboardEvent) {
+      if (
+        e.key.toLowerCase() === 't' &&
+        !e.metaKey && !e.ctrlKey &&
+        document.activeElement?.tagName !== 'INPUT' &&
+        document.activeElement?.tagName !== 'TEXTAREA'
+      ) {
+        const cx = window.innerWidth / 2
+        const cy = window.innerHeight / 2
+        useThemeStore.getState().toggle(cx, cy)
+      }
+    }
+    window.addEventListener('keydown', onThemeKey)
+    return () => window.removeEventListener('keydown', onThemeKey)
+  }, [])
+
   useEffect(() => {
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
@@ -156,7 +175,7 @@ export default function Drive() {
   }
 
   return (
-    <div className="flex h-screen bg-[#0f0f11] relative overflow-hidden text-gray-200">
+    <div className="flex h-screen relative overflow-hidden" style={{ background: 'var(--bg)', color: 'var(--fg)' }}>
       {/* Background Gradient Orbs */}
       <div className="absolute inset-0 pointer-events-none z-0">
         <div className="absolute -top-[10%] -right-[5%] w-[600px] h-[600px] rounded-full bg-violet-900/10 blur-[100px]" />

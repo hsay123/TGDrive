@@ -54,9 +54,9 @@ export function FilesTable({ files, selectedIds, onSelect, onDoubleClick, onCont
         display: 'grid',
         gridTemplateColumns: '1fr 1fr',
         padding: '14px 24px',
-        borderBottom: '1px solid rgba(255,255,255,0.07)',
+        borderBottom: '1px solid var(--border)',
         fontSize: 12, fontWeight: 600,
-        color: 'rgba(255,255,255,0.35)',
+        color: 'var(--muted)',
         letterSpacing: '0.2px',
         textTransform: 'uppercase',
       }}>
@@ -84,14 +84,14 @@ export function FilesTable({ files, selectedIds, onSelect, onDoubleClick, onCont
               display: 'grid',
               gridTemplateColumns: '1fr 1fr',
               padding: '14px 24px',
-              borderBottom: '1px solid rgba(255,255,255,0.03)',
+              borderBottom: '1px solid var(--border)',
               alignItems: 'center',
               cursor: 'pointer',
               transition: 'background 150ms',
               background: isSelected
                 ? 'rgba(251,113,133,0.1)'
                 : isHovered
-                ? 'rgba(255,255,255,0.04)'
+                ? 'rgba(0,0,0,0.04)'
                 : 'transparent',
             }}
           >
@@ -111,7 +111,7 @@ export function FilesTable({ files, selectedIds, onSelect, onDoubleClick, onCont
                 </span>
               </div>
               <span style={{
-                fontSize: 14, fontWeight: 500, color: 'rgba(255,255,255,0.9)',
+                fontSize: 14, fontWeight: 500, color: 'var(--fg)',
                 overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
                 maxWidth: 240,
               }}>{file.name}</span>

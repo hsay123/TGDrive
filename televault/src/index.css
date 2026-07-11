@@ -4,16 +4,56 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ── THEME TOKENS ── */
+:root {
+  /* Light theme */
+  --bg:      #f4f3ef;
+  --bg-2:    #eae8e0;
+  --fg:      #1a1a1a;
+  --muted:   #6b6b6b;
+  --border:  #d8d5cc;
+  --card:    #fbfaf6;
+  --accent:  #5e5ce6;
+}
+
+[data-theme="dark"] {
+  --bg:      #000000;
+  --bg-2:    #0a0a0a;
+  --fg:      #f2f2f0;
+  --muted:   #8a8a8a;
+  --border:  #1a1a1a;
+  --card:    #111113;
+  --accent:  #7c7aff;
+}
+
+/* Body transitions for Electron */
 html, body, #root {
   height: 100%;
   overflow: hidden;
-  background-color: #0f0f11;
-  color: #f3f4f6;
+  background-color: var(--bg, #0f0f11);
+  color: var(--fg, #f3f4f6);
   font-family: Inter, system-ui, -apple-system, sans-serif;
+  transition: background-color 0.5s ease, color 0.5s ease;
 }
 
 * {
   box-sizing: border-box;
+}
+
+/* ── VIEW TRANSITION — circle blur reveal ── */
+::view-transition-old(root) {
+  animation: none;
+  mix-blend-mode: normal;
+}
+::view-transition-new(root) {
+  mix-blend-mode: normal;
+  animation: circle-blur-reveal 850ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+@keyframes circle-blur-reveal {
+  0%   { clip-path: circle(0%   at var(--vt-origin, 50% 50%)); filter: blur(0px); }
+  35%  { filter: blur(14px); }
+  100% { clip-path: circle(160% at var(--vt-origin, 50% 50%)); filter: blur(0px); }
 }
 
 /* Custom scrollbar */
@@ -31,6 +71,10 @@ html, body, #root {
   border-radius: 9999px;
 }
 
+[data-theme="light"] ::-webkit-scrollbar-thumb {
+  background: #c0bdb6;
+}
+
 ::-webkit-scrollbar-thumb:hover {
   background: #4b5563;
 }
@@ -45,8 +89,13 @@ html, body, #root {
 
 /* Shimmer animation for progress bars */
 @keyframes shimmer {
-  0% { transform: translateX(-100%); }
-  100% { transform: translateX(100%); }
+  0% {
+    transform: translateX(-100%);
+  }
+
+  100% {
+    transform: translateX(100%);
+  }
 }
 
 .animate-shimmer {
@@ -62,4 +111,16 @@ select {
 *:focus-visible {
   outline: 2px solid #7c3aed;
   outline-offset: 2px;
+}
+
+/* ── AMBIENT BLOBS — light mode only ── */
+[data-theme="light"] #root::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(ellipse at 10% 20%, rgba(255,200,150,0.35) 0%, transparent 50%),
+    radial-gradient(ellipse at 90% 80%, rgba(180,210,255,0.35) 0%, transparent 50%);
 }

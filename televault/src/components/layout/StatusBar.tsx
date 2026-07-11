@@ -54,7 +54,10 @@ export function StatusBar() {
   }
 
   return (
-    <div className="relative z-10 flex h-7 items-center justify-between border-t border-white/5 bg-[#16161a]/80 backdrop-blur-md px-5 text-xs text-gray-400">
+    <div
+      className="relative z-10 flex h-7 items-center justify-between px-5 text-xs backdrop-blur-md"
+      style={{ background: 'var(--bg)', borderTop: '1px solid var(--border)', color: 'var(--muted)' }}
+    >
       {/* Left: item count + selection */}
       <div className="flex items-center gap-3">
         <span>

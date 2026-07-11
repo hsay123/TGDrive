@@ -83,13 +83,16 @@ export function Sidebar() {
   const initials = user?.firstName?.[0]?.toUpperCase() ?? 'U'
 
   return (
-    <aside className="relative z-10 flex w-60 flex-shrink-0 flex-col border-r border-white/5 bg-[#16161a]/80 backdrop-blur-md">
+    <aside
+      className="relative z-10 flex w-60 flex-shrink-0 flex-col backdrop-blur-md"
+      style={{ background: 'var(--bg-2)', borderRight: '1px solid var(--border)' }}
+    >
       {/* Logo */}
-      <div className="flex items-center gap-2.5 border-b border-white/5 px-5 py-5">
+      <div className="flex items-center gap-2.5 px-5 py-5" style={{ borderBottom: '1px solid var(--border)' }}>
         <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-br from-rose-500 to-violet-600 shadow-lg shadow-violet-500/20">
           <Zap className="h-4 w-4 text-white" />
         </div>
-        <span className="text-base font-bold text-white tracking-tight">TeleVault</span>
+        <span className="text-base font-bold tracking-tight" style={{ color: 'var(--fg)' }}>TeleVault</span>
       </div>
 
       {/* Primary nav */}
@@ -101,9 +104,10 @@ export function Sidebar() {
             className={clsx(
               'relative flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition-all duration-200',
               active
-                ? 'bg-white/[0.04] text-white font-medium shadow-inner shadow-white/5'
-                : 'text-gray-400 hover:bg-white/[0.02] hover:text-gray-200'
+                ? 'bg-white/[0.04] font-medium shadow-inner shadow-white/5'
+                : 'hover:bg-white/[0.02]'
             )}
+            style={{ color: active ? 'var(--fg)' : 'var(--muted)' }}
           >
             {active && (
               <div className="absolute left-0 top-1/2 -translate-y-1/2 h-5 w-1 rounded-r-full bg-rose-400 shadow-[0_0_12px_rgba(251,113,133,0.8)]" />
@@ -114,7 +118,7 @@ export function Sidebar() {
         ))}
       </nav>
 
-      <div className="my-2 mx-4 border-t border-white/5" />
+      <div className="my-2 mx-4" style={{ borderTop: '1px solid var(--border)' }} />
 
       {/* Folders / Tags pill toggle */}
       <div style={{
@@ -154,19 +158,19 @@ export function Sidebar() {
         {sidebarTab === 'folders' && <FolderTree />}
         {sidebarTab === 'tags' && (
           <div style={{ padding: '20px 16px', textAlign: 'center',
-            fontSize: 13, color: 'rgba(255,255,255,0.25)' }}>
+            fontSize: 13, color: 'var(--muted)' }}>
             Tags coming soon
           </div>
         )}
       </div>
 
       {/* Bottom section */}
-      <div className="border-t border-gray-800 p-3 space-y-3">
+      <div className="p-3 space-y-3" style={{ borderTop: '1px solid var(--border)' }}>
         {/* Storage bar */}
         <div className="px-2 space-y-1.5">
           <div className="flex items-center justify-between">
-            <span className="text-xs text-gray-500">Storage</span>
-            <span className="text-xs text-gray-400 font-medium">
+            <span className="text-xs" style={{ color: 'var(--muted)' }}>Storage</span>
+            <span className="text-xs font-medium" style={{ color: 'var(--muted)' }}>
               {formatBytes(storageUsed)}{' '}
               <span className="text-gray-600">of {STORAGE_LIMIT_LABEL}</span>
             </span>
@@ -199,7 +203,7 @@ export function Sidebar() {
           <div className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-violet-600 text-xs font-semibold text-white">
             {initials}
           </div>
-          <span className="flex-1 truncate text-sm text-gray-300">
+          <span className="flex-1 truncate text-sm" style={{ color: 'var(--fg)' }}>
             {user?.firstName ?? 'User'}
           </span>
           <Link

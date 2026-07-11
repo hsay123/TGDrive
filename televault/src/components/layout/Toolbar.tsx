@@ -11,6 +11,7 @@ import {
   X,
 } from 'lucide-react'
 import { Button } from '../shared/Button'
+import { ThemeToggle } from '../shared/ThemeToggle'
 import { useFilesStore } from '../../store/files.store'
 import { useUIStore } from '../../store/ui.store'
 import { useUploadStore } from '../../store/upload.store'
@@ -94,7 +95,10 @@ export function Toolbar() {
   }, [])
 
   return (
-    <div className="relative z-10 flex items-center gap-2 border-b border-white/5 bg-[#16161a]/80 backdrop-blur-md px-5 py-2.5 h-[56px]">
+    <div
+      className="relative z-10 flex items-center gap-2 px-5 py-2.5 h-[56px] backdrop-blur-md"
+      style={{ background: 'var(--bg)', borderBottom: '1px solid var(--border)' }}
+    >
       {/* Breadcrumb */}
       <nav className="flex min-w-0 flex-1 items-center gap-1 text-sm text-gray-400 overflow-hidden">
         <button
@@ -234,6 +238,9 @@ export function Toolbar() {
           New
         </button>
 
+        {/* Theme toggle */}
+        <ThemeToggle />
+
         {/* Upload */}
         <Button
           variant="primary"
@@ -253,8 +260,8 @@ export function Toolbar() {
             isSyncing
               ? 'text-violet-400 cursor-not-allowed'
               : syncDone
-              ? 'text-teal-400'
-              : 'text-gray-500 hover:bg-gray-800 hover:text-gray-200'
+                ? 'text-teal-400'
+                : 'text-gray-500 hover:bg-gray-800 hover:text-gray-200'
           )}
           title="Sync now"
         >
