@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from 'react'
+import { useState, useRef } from 'react'
 import type { VFSEntry } from '../../types'
 import { FileCard } from './FileCard'
 import { ContextMenu } from './ContextMenu'
@@ -15,7 +15,6 @@ export function FileGrid({ entries: entriesProp }: FileGridProps) {
   const entries = entriesProp ?? storeEntries
   const selectedIds = useFilesStore((s) => s.selectedIds)
   const selectFile = useFilesStore((s) => s.selectFile)
-  const clearSelection = useFilesStore((s) => s.clearSelection)
   const setPath = useFilesStore((s) => s.setPath)
   const setPreviewEntryId = useUIStore((s) => s.setPreviewEntryId)
 
@@ -24,24 +23,10 @@ export function FileGrid({ entries: entriesProp }: FileGridProps) {
   } | null>(null)
 
   // Refs for drag-select
-  const containerRef = useRef<HTMLDivElement>(null)
   const cardRefs = useRef<Map<string, HTMLElement>>(new Map())
 
-  // When marquee moves, bulk-select intersecting cards
-  const handleMarqueeSelect = useCallback((ids: string[]) => {
-    const store = useFilesStore.getState()
-    const next = new Set<string>(ids)
-    store.selectedIds.forEach(id => next.add(id))
-    // Replace selection with marquee result (don't accumulate from previous drags)
-    useFilesStore.setState({ selectedIds: new Set(ids) })
-  }, [])
-
-  const { state: dragState, onMouseDown, onMouseMove, onMouseUp } = useDragSelect({
-    containerRef,
-    cardRefs,
-    onSelect: handleMarqueeSelect,
-    onClear: clearSelection,
-  })
+  // Hook manages all drag-select logic internally — no callbacks needed
+  const { state: dragState, onMouseDown, onMouseMove, onMouseUp } = useDragSelect(cardRefs)
 
   const handleSelect = (entry: VFSEntry, multi: boolean) => {
     selectFile(entry.id, multi)
@@ -58,7 +43,6 @@ export function FileGrid({ entries: entriesProp }: FileGridProps) {
   return (
     <>
       <div
-        ref={containerRef}
         className="w-full relative"
         style={{ userSelect: 'none', WebkitUserSelect: 'none' }}
         onMouseDown={onMouseDown}
