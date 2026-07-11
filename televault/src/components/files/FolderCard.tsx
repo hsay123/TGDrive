@@ -172,11 +172,10 @@ export function FolderCard({
       {/* ── LABEL ── */}
       <div style={{ textAlign: 'center' }}>
         <h3 style={{
-          fontSize: 14, fontWeight: 500,
           letterSpacing: '-0.1px', marginBottom: 2,
           maxWidth: 160, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-        }} className="text-neutral-900 dark:text-white/88">{name}</h3>
-        <p className="text-neutral-500 dark:text-white/35" style={{ fontSize: 11 }}>
+        }} className="text-sm font-medium text-neutral-900 dark:text-neutral-100">{name}</h3>
+        <p className="text-xs text-neutral-500 dark:text-neutral-400">
           {fileCount} {fileCount === 1 ? 'file' : 'files'}
         </p>
       </div>
