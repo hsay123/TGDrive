@@ -1,81 +1,96 @@
-import { useRef, useCallback, useState } from 'react'
+import { useRef, useCallback, useState, useEffect } from 'react'
+import { useFilesStore } from '../store/files.store'
 
-interface Rect { x: number; y: number; width: number; height: number }
+interface BBox { left: number; top: number; right: number; bottom: number }
 
-function rectsIntersect(a: Rect, b: Rect): boolean {
-  return (
-    a.x < b.x + b.width &&
-    a.x + a.width > b.x &&
-    a.y < b.y + b.height &&
-    a.y + a.height > b.y
-  )
+function rectsIntersect(a: BBox, b: BBox): boolean {
+  return !(a.right < b.left || a.left > b.right || a.bottom < b.top || a.top > b.bottom)
 }
 
-interface UseDragSelectOptions {
-  containerRef: React.RefObject<HTMLElement>
-  onSelect: (ids: string[]) => void
-  onClear: () => void
-  cardRefs: React.RefObject<Map<string, HTMLElement>>
+export interface MarqueeRect {
+  x: number; y: number; width: number; height: number
 }
 
 export interface DragSelectState {
   isDragging: boolean
-  // marquee in VIEWPORT (fixed) coordinates — used for both rendering and intersection
-  marquee: Rect | null
+  marquee: MarqueeRect | null
 }
 
-export function useDragSelect({
-  containerRef,
-  onSelect,
-  onClear,
-  cardRefs,
-}: UseDragSelectOptions) {
-  // Store start in viewport coords — no scroll offset needed
+const DRAG_THRESHOLD = 5
+
+export function useDragSelect(
+  cardRefs: React.RefObject<Map<string, HTMLElement>>
+) {
   const startPos = useRef<{ x: number; y: number } | null>(null)
+  const didDrag  = useRef(false)
+  const button   = useRef<number>(0)
   const [state, setState] = useState<DragSelectState>({ isDragging: false, marquee: null })
 
-  const onMouseDown = useCallback(
-    (e: React.MouseEvent) => {
-      if (e.button !== 0) return
-      const target = e.target as HTMLElement
-      // Bail if clicked directly on a card or any child inside a card
-      if (target.closest('[data-file-card]')) return
-
-      e.preventDefault()
-      onClear()
-
-      // Use raw viewport coords — avoids all scroll-offset math
-      startPos.current = { x: e.clientX, y: e.clientY }
-      setState({ isDragging: true, marquee: { x: e.clientX, y: e.clientY, width: 0, height: 0 } })
-    },
-    [onClear]
-  )
-
-  const onMouseMove = useCallback(
-    (e: React.MouseEvent) => {
-      if (!startPos.current) return
-
-      // Marquee entirely in viewport coords
-      const marquee: Rect = {
-        x: Math.min(startPos.current.x, e.clientX),
-        y: Math.min(startPos.current.y, e.clientY),
-        width: Math.abs(e.clientX - startPos.current.x),
-        height: Math.abs(e.clientY - startPos.current.y),
+  // Capture-phase contextmenu suppressor — blocks popup after right-drag
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (didDrag.current && button.current === 2) {
+        e.preventDefault()
+        e.stopPropagation()
+        didDrag.current = false // reset so next right-click shows menu normally
       }
-      setState({ isDragging: true, marquee })
+    }
+    window.addEventListener('contextmenu', handler, true)
+    return () => window.removeEventListener('contextmenu', handler, true)
+  }, [])
 
-      // getBoundingClientRect() is already in viewport coords — direct comparison, no offsets
-      const hit: string[] = []
-      cardRefs.current?.forEach((el, id) => {
-        const cr = el.getBoundingClientRect()
-        if (rectsIntersect(marquee, { x: cr.left, y: cr.top, width: cr.width, height: cr.height })) {
-          hit.push(id)
-        }
-      })
-      onSelect(hit)
-    },
-    [cardRefs, onSelect]
-  )
+  const onMouseDown = useCallback((e: React.MouseEvent) => {
+    if (e.button !== 0 && e.button !== 2) return
+    const target = e.target as HTMLElement
+    if (target.closest('[data-file-card]')) return
+
+    if (e.button === 0) e.preventDefault()
+
+    useFilesStore.getState().clearSelection()
+    button.current   = e.button
+    startPos.current = { x: e.clientX, y: e.clientY }
+    didDrag.current  = false
+    setState({ isDragging: false, marquee: null })
+  }, [])
+
+  const onMouseMove = useCallback((e: React.MouseEvent) => {
+    if (!startPos.current) return
+
+    const sx = startPos.current.x
+    const sy = startPos.current.y
+    const cx = e.clientX
+    const cy = e.clientY
+    const moved = Math.sqrt((cx - sx) ** 2 + (cy - sy) ** 2)
+
+    if (moved < DRAG_THRESHOLD && !didDrag.current) return
+
+    didDrag.current = true
+
+    const marquee: MarqueeRect = {
+      x: Math.min(sx, cx),
+      y: Math.min(sy, cy),
+      width: Math.abs(cx - sx),
+      height: Math.abs(cy - sy),
+    }
+    setState({ isDragging: true, marquee })
+
+    const mbox: BBox = {
+      left:   marquee.x,
+      top:    marquee.y,
+      right:  marquee.x + marquee.width,
+      bottom: marquee.y + marquee.height,
+    }
+
+    const hit: string[] = []
+    cardRefs.current?.forEach((el, id) => {
+      const cr = el.getBoundingClientRect()
+      if (rectsIntersect(mbox, { left: cr.left, top: cr.top, right: cr.right, bottom: cr.bottom })) {
+        hit.push(id)
+      }
+    })
+
+    useFilesStore.setState({ selectedIds: new Set(hit) })
+  }, [cardRefs])
 
   const onMouseUp = useCallback(() => {
     startPos.current = null
