@@ -1,6 +1,8 @@
 import { Link, useLocation } from 'react-router-dom'
-import { Settings, HardDrive, Clock, Star, Trash2, Zap } from 'lucide-react'
+import { Settings, HardDrive, Clock, Star, Trash2 } from 'lucide-react'
 import { FolderTree } from '../folders/FolderTree'
+import blackLogo from '../../assets/blacklogo.png'
+import whiteLogo from '../../assets/whittelogo.png'
 import { useAuthStore } from '../../store/auth.store'
 import { useFilesStore } from '../../store/files.store'
 import { useState, useEffect } from 'react'
@@ -89,10 +91,20 @@ export function Sidebar() {
     >
       {/* Logo */}
       <div className="flex items-center gap-2.5 px-5 py-5" style={{ borderBottom: '1px solid var(--border)' }}>
-        <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-br from-rose-500 to-violet-600 shadow-lg shadow-violet-500/20">
-          <Zap className="h-4 w-4 text-white" />
-        </div>
-        <span className="text-base font-bold tracking-tight" style={{ color: 'var(--fg)' }}>TeleVault</span>
+        <Link to="/" className="flex items-center">
+          {/* Light Mode Logo: Visible by default, hidden in dark mode */}
+          <img 
+            src={blackLogo} 
+            alt="TeleVault" 
+            className="h-8 w-auto object-contain block dark:hidden" 
+          />
+          {/* Dark Mode Logo: Hidden by default, visible in dark mode */}
+          <img 
+            src={whiteLogo} 
+            alt="TeleVault" 
+            className="h-8 w-auto object-contain hidden dark:block" 
+          />
+        </Link>
       </div>
 
       {/* Primary nav */}
