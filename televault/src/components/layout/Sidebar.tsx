@@ -104,15 +104,14 @@ export function Sidebar() {
             className={clsx(
               'relative flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition-all duration-200',
               active
-                ? 'bg-white/[0.04] font-medium shadow-inner shadow-white/5'
-                : 'hover:bg-white/[0.02]'
+                ? 'bg-purple-100/50 text-purple-700 dark:bg-purple-500/10 dark:text-purple-400 font-medium'
+                : 'text-neutral-600 hover:text-neutral-900 hover:bg-black/5 dark:text-neutral-400 dark:hover:text-neutral-100 dark:hover:bg-white/[0.02]'
             )}
-            style={{ color: active ? 'var(--fg)' : 'var(--muted)' }}
           >
             {active && (
-              <div className="absolute left-0 top-1/2 -translate-y-1/2 h-5 w-1 rounded-r-full bg-rose-400 shadow-[0_0_12px_rgba(251,113,133,0.8)]" />
+              <div className="absolute left-0 top-1/2 -translate-y-1/2 h-5 w-1 rounded-r-full bg-purple-500 dark:bg-purple-400 shadow-[0_0_12px_rgba(168,85,247,0.4)]" />
             )}
-            <Icon className={clsx("h-4 w-4 flex-shrink-0", active ? "text-rose-400" : "")} />
+            <Icon className={clsx("h-4 w-4 flex-shrink-0", active ? "text-purple-600 dark:text-purple-400" : "")} />
             {label}
           </button>
         ))}
@@ -121,32 +120,17 @@ export function Sidebar() {
       <div className="my-2 mx-4" style={{ borderTop: '1px solid var(--border)' }} />
 
       {/* Folders / Tags pill toggle */}
-      <div style={{
-        margin: '12px 12px 8px',
-        display: 'grid',
-        gridTemplateColumns: '1fr 1fr',
-        background: 'rgba(255,255,255,0.06)',
-        borderRadius: 10,
-        padding: 3,
-      }}>
+      <div className="mx-3 mt-3 mb-2 grid grid-cols-2 p-[3px] rounded-[10px] bg-black/5 dark:bg-white/[0.06]">
         {(['folders', 'tags'] as const).map(tab => (
           <button
             key={tab}
             onClick={() => setSidebarTab(tab)}
-            style={{
-              padding: '6px 0',
-              borderRadius: 8,
-              border: 'none',
-              cursor: 'pointer',
-              fontSize: 13, fontWeight: 600,
-              background: sidebarTab === tab
-                ? 'rgba(255,255,255,0.12)'
-                : 'transparent',
-              color: sidebarTab === tab
-                ? 'rgba(255,255,255,0.90)'
-                : 'rgba(255,255,255,0.35)',
-              transition: 'all 200ms ease',
-            }}
+            className={clsx(
+              "py-1.5 rounded-lg text-[13px] font-semibold transition-all duration-200 cursor-pointer border-none",
+              sidebarTab === tab
+                ? "bg-white text-neutral-900 shadow-sm dark:bg-white/10 dark:text-white"
+                : "text-neutral-500 hover:text-neutral-900 bg-transparent dark:text-neutral-400 dark:hover:text-neutral-100"
+            )}
           >
             {tab === 'folders' ? 'Folders' : 'Tags'}
           </button>
@@ -199,7 +183,7 @@ export function Sidebar() {
         </div>
 
         {/* User row */}
-        <div className="flex items-center gap-2 rounded-md px-2 py-1.5 hover:bg-gray-800 transition-colors group cursor-default">
+        <div className="flex items-center gap-2 rounded-md px-2 py-1.5 hover:bg-black/5 dark:hover:bg-gray-800 transition-colors group cursor-default">
           <div className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-violet-600 text-xs font-semibold text-white">
             {initials}
           </div>
@@ -208,7 +192,7 @@ export function Sidebar() {
           </span>
           <Link
             to="/settings"
-            className="text-gray-500 hover:text-gray-200 transition-colors opacity-0 group-hover:opacity-100"
+            className="text-neutral-400 hover:text-neutral-600 dark:text-gray-500 dark:hover:text-gray-200 transition-colors opacity-0 group-hover:opacity-100"
             title="Settings"
           >
             <Settings className="h-4 w-4" />

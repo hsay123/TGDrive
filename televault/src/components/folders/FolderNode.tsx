@@ -27,8 +27,8 @@ export function FolderNode({ folder, depth }: FolderNodeProps) {
         className={clsx(
           'flex w-full items-center gap-1.5 rounded-lg py-1.5 pr-2 text-sm transition-colors duration-150',
           isActive
-            ? 'bg-white/10 text-white font-medium shadow-sm'
-            : 'text-gray-400 hover:bg-white/5 hover:text-gray-200'
+            ? 'bg-purple-100/50 text-purple-700 dark:bg-purple-500/10 dark:text-purple-400 font-medium shadow-sm'
+            : 'text-neutral-600 hover:text-neutral-900 hover:bg-black/5 dark:text-neutral-400 dark:hover:bg-white/5 dark:hover:text-neutral-100'
         )}
         style={{ paddingLeft: `${depth * 16 + 8}px` }}
         onClick={() => {
@@ -47,7 +47,7 @@ export function FolderNode({ folder, depth }: FolderNodeProps) {
           {hasChildren ? (
             <ChevronRight
               className={clsx(
-                'h-4 w-4 text-gray-500 transition-transform duration-150',
+                'h-4 w-4 text-neutral-400 dark:text-gray-500 transition-transform duration-150',
                 isExpanded && 'rotate-90'
               )}
             />
@@ -60,7 +60,7 @@ export function FolderNode({ folder, depth }: FolderNodeProps) {
         <Folder
           className={clsx(
             'h-4 w-4 flex-shrink-0',
-            isActive ? 'text-rose-400' : 'text-gray-500'
+            isActive ? 'text-purple-700 dark:text-purple-400' : 'text-neutral-500 dark:text-gray-500'
           )}
         />
 
@@ -69,7 +69,7 @@ export function FolderNode({ folder, depth }: FolderNodeProps) {
 
         {/* File count badge */}
         {folder.fileCount > 0 && (
-          <span className="flex-shrink-0 rounded-full bg-[#2a2a2e]/80 shadow-[inset_0_1px_0_rgba(255,255,255,0.1)] px-2 py-0.5 text-[10px] font-medium text-gray-400">
+          <span className="flex-shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium bg-neutral-200 text-neutral-700 dark:bg-neutral-700 dark:text-neutral-300">
             {folder.fileCount}
           </span>
         )}

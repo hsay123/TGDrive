@@ -415,7 +415,7 @@ export function FloatingUploadCard() {
     >
       {/* Liquid glass card */}
       <div
-        className="rounded-[28px] overflow-hidden bg-white/70 dark:bg-neutral-900/60 backdrop-blur-2xl border border-black/[0.08] dark:border-white/[0.08] border-t-white/80 dark:border-t-white/20 shadow-xl dark:shadow-[0_20px_40px_rgba(0,0,0,0.52)]"
+        className="rounded-[28px] overflow-hidden bg-white/[0.65] dark:bg-neutral-900/60 backdrop-blur-xl border border-black/[0.08] dark:border-white/[0.08] border-t-white/80 dark:border-t-white/20 shadow-xl dark:shadow-[0_20px_40px_rgba(0,0,0,0.52)]"
       >
         {/* ── Header ── */}
         <div className="flex items-center justify-between px-4 pt-4 pb-3">
