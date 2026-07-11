@@ -241,6 +241,9 @@ export default function Drive() {
                                 onDoubleClick={() => setPath(folder.path)}
                                 onContextMenu={(e) => {
                                   e.preventDefault()
+                                  if (!selectedIds.has(folder.id)) {
+                                    selectFile(folder.id, false)
+                                  }
                                   setContextMenu({ x: e.clientX, y: e.clientY, entry: folder })
                                 }}
                               />

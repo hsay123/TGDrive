@@ -70,6 +70,9 @@ export function FileGrid({ entries: entriesProp }: FileGridProps) {
                   onContextMenu={(e) => {
                     e.preventDefault()
                     e.stopPropagation()
+                    if (!selectedIds.has(entry.id)) {
+                      selectFile(entry.id, false)
+                    }
                     setContextMenu({ x: e.clientX, y: e.clientY, entry })
                   }}
                 />

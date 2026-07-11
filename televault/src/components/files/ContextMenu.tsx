@@ -40,6 +40,12 @@ export function ContextMenu({ x, y, entry, onClose }: ContextMenuProps) {
   const setRenamingId = useFilesStore((s) => s.setRenamingId)
   const setPreviewEntryId = useUIStore((s) => s.setPreviewEntryId)
   const openMoveToModal = useUIStore((s) => s.openMoveToModal)
+  const selectedIds = useFilesStore((s) => s.selectedIds)
+  const clearSelection = useFilesStore((s) => s.clearSelection)
+
+  const isBulk = selectedIds.size > 1 && selectedIds.has(entry.id)
+  const targetIds = isBulk ? Array.from(selectedIds) : [entry.id]
+  const bulkLabel = (base: string) => isBulk ? `${base} (${targetIds.length} items)` : base
 
   useEffect(() => {
     const handleClick = (e: MouseEvent) => {
@@ -62,6 +68,7 @@ export function ContextMenu({ x, y, entry, onClose }: ContextMenuProps) {
     try {
       await fn()
       await refreshFolder()
+      clearSelection()
       onClose()
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Action failed')
@@ -76,7 +83,9 @@ export function ContextMenu({ x, y, entry, onClose }: ContextMenuProps) {
       label: isFile ? 'Preview' : 'Open',
       icon: <Eye className="h-3.5 w-3.5" />,
       action: () => {
-        if (isFile) {
+        if (isBulk) {
+          toast('Preview/Open is only available for single items')
+        } else if (isFile) {
           setPreviewEntryId(entry.id)
         } else {
           useFilesStore.getState().setPath(entry.path)
@@ -88,13 +97,15 @@ export function ContextMenu({ x, y, entry, onClose }: ContextMenuProps) {
 
   if (isFile) {
     items.push({
-      label: 'Download',
+      label: bulkLabel('Download'),
       icon: <Download className="h-3.5 w-3.5" />,
       action: () =>
         run(async () => {
-          const result = await window.televault.files.download(entry.id)
-          if (!result.success) throw new Error(result.error)
-          toast.success('Download started')
+          for (const id of targetIds) {
+            const result = await window.televault.files.download(id)
+            if (!result.success) throw new Error(result.error)
+          }
+          toast.success(isBulk ? 'Downloads started' : 'Download started')
         }),
       dividerBefore: true,
     })
@@ -108,12 +119,13 @@ export function ContextMenu({ x, y, entry, onClose }: ContextMenuProps) {
         setRenamingId(entry.id)
         onClose()
       },
+      disabled: isBulk,
     })
     items.push({
-      label: 'Move to…',
+      label: bulkLabel('Move to…'),
       icon: <FolderInput className="h-3.5 w-3.5" />,
       action: () => {
-        openMoveToModal([entry.id], entry.type)
+        openMoveToModal(targetIds, entry.type)
         onClose()
       },
     })
@@ -121,13 +133,15 @@ export function ContextMenu({ x, y, entry, onClose }: ContextMenuProps) {
 
   if (isFile && !isTrashView) {
     items.push({
-      label: isStarred ? 'Unstar' : 'Star',
+      label: isStarred ? bulkLabel('Unstar') : bulkLabel('Star'),
       icon: <Star className={clsx('h-3.5 w-3.5', isStarred && 'fill-yellow-400 text-yellow-400')} />,
       action: () =>
         run(async () => {
-          const result = await window.televault.files.toggleStar(entry.id)
-          if (!result.success) throw new Error(result.error)
-          toast.success(result.data?.starred ? 'Starred' : 'Unstarred')
+          for (const id of targetIds) {
+            const result = await window.televault.files.toggleStar(id)
+            if (!result.success) throw new Error(result.error)
+          }
+          toast.success(isStarred ? 'Unstarred' : 'Starred')
         }),
       dividerBefore: true,
     })
@@ -147,40 +161,47 @@ export function ContextMenu({ x, y, entry, onClose }: ContextMenuProps) {
           await navigator.clipboard.writeText(result.data!.url)
           toast.success('Link copied! Note: only works for accounts with access to your TeleVault Telegram channels.')
         }),
+      disabled: isBulk,
     })
   }
 
   if (isTrashView) {
     items.push({
-      label: 'Restore',
+      label: bulkLabel('Restore'),
       icon: <Trash className="h-3.5 w-3.5" />,
       action: () =>
         run(async () => {
-          const result = await window.televault.files.restore(entry.id)
-          if (!result.success) throw new Error(result.error)
+          for (const id of targetIds) {
+            const result = await window.televault.files.restore(id)
+            if (!result.success) throw new Error(result.error)
+          }
         }),
       dividerBefore: true,
     })
     items.push({
-      label: 'Delete permanently',
+      label: bulkLabel('Delete permanently'),
       icon: <Trash2 className="h-3.5 w-3.5" />,
       action: () => {
-        if (!confirm('Permanently delete this file? This cannot be undone.')) return
+        if (!confirm(`Permanently delete ${targetIds.length === 1 ? 'this file' : `these ${targetIds.length} items`}? This cannot be undone.`)) return
         run(async () => {
-          const result = await window.televault.files.delete(entry.id, true)
-          if (!result.success) throw new Error(result.error)
+          for (const id of targetIds) {
+            const result = await window.televault.files.delete(id, true)
+            if (!result.success) throw new Error(result.error)
+          }
         })
       },
       danger: true,
     })
   } else {
     items.push({
-      label: 'Move to Trash',
+      label: bulkLabel('Move to Trash'),
       icon: <Trash2 className="h-3.5 w-3.5" />,
       action: () =>
         run(async () => {
-          const result = await window.televault.files.delete(entry.id, false)
-          if (!result.success) throw new Error(result.error)
+          for (const id of targetIds) {
+            const result = await window.televault.files.delete(id, false)
+            if (!result.success) throw new Error(result.error)
+          }
         }),
       danger: true,
       dividerBefore: true,
