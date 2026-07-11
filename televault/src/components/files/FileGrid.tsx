@@ -4,13 +4,13 @@ import { FileCard } from './FileCard'
 import { ContextMenu } from './ContextMenu'
 import { useFilesStore } from '../../store/files.store'
 import { useUIStore } from '../../store/ui.store'
-import { useDragSelect } from '../../hooks/useDragSelect'
 
 interface FileGridProps {
   entries?: VFSEntry[]
+  cardRefs?: React.MutableRefObject<Map<string, HTMLElement>>
 }
 
-export function FileGrid({ entries: entriesProp }: FileGridProps) {
+export function FileGrid({ entries: entriesProp, cardRefs: cardRefsProp }: FileGridProps) {
   const storeEntries = useFilesStore((s) => s.entries)
   const entries = entriesProp ?? storeEntries
   const selectedIds = useFilesStore((s) => s.selectedIds)
@@ -19,14 +19,12 @@ export function FileGrid({ entries: entriesProp }: FileGridProps) {
   const setPreviewEntryId = useUIStore((s) => s.setPreviewEntryId)
 
   const [contextMenu, setContextMenu] = useState<{
-    x: number; y: number; entry: VFSEntry
+    x: number; y: number; entries: VFSEntry[]
   } | null>(null)
 
-  // Refs for drag-select
-  const cardRefs = useRef<Map<string, HTMLElement>>(new Map())
-
-  // Hook manages all drag-select logic internally — no callbacks needed
-  const { state: dragState, onMouseDown, onMouseMove, onMouseUp } = useDragSelect(cardRefs)
+  // Use provided cardRefs or fallback to internal ref if none provided
+  const internalRef = useRef<Map<string, HTMLElement>>(new Map())
+  const cardRefs = cardRefsProp || internalRef
 
   const handleSelect = (entry: VFSEntry, multi: boolean) => {
     selectFile(entry.id, multi)
@@ -42,15 +40,7 @@ export function FileGrid({ entries: entriesProp }: FileGridProps) {
 
   return (
     <>
-      <div
-        className="w-full relative"
-        style={{ userSelect: 'none', WebkitUserSelect: 'none' }}
-        onMouseDown={onMouseDown}
-        onMouseMove={onMouseMove}
-        onMouseUp={onMouseUp}
-        // Also end drag if mouse leaves window
-        onMouseLeave={onMouseUp}
-      >
+      <div className="w-full relative">
         {entries.length > 0 ? (
           <div className="grid grid-cols-[repeat(auto-fill,minmax(120px,1fr))] gap-6">
             {entries.map((entry) => (
@@ -70,10 +60,13 @@ export function FileGrid({ entries: entriesProp }: FileGridProps) {
                   onContextMenu={(e) => {
                     e.preventDefault()
                     e.stopPropagation()
-                    if (!selectedIds.has(entry.id)) {
+                    let targets = [entry]
+                    if (selectedIds.has(entry.id)) {
+                      targets = storeEntries.filter((e) => selectedIds.has(e.id))
+                    } else {
                       selectFile(entry.id, false)
                     }
-                    setContextMenu({ x: e.clientX, y: e.clientY, entry })
+                    setContextMenu({ x: e.clientX, y: e.clientY, entries: targets })
                   }}
                 />
               </div>
@@ -84,31 +77,13 @@ export function FileGrid({ entries: entriesProp }: FileGridProps) {
             This folder is empty
           </div>
         )}
-
-        {/* ── MARQUEE SELECTION BOX (fixed = viewport coords, matches hook) ── */}
-        {dragState.isDragging && dragState.marquee && dragState.marquee.width > 4 && (
-          <div
-            style={{
-              position: 'fixed',
-              left: dragState.marquee.x,
-              top: dragState.marquee.y,
-              width: dragState.marquee.width,
-              height: dragState.marquee.height,
-              border: '1px solid rgba(168,85,247,0.85)',
-              background: 'rgba(168,85,247,0.12)',
-              borderRadius: 6,
-              pointerEvents: 'none',
-              zIndex: 9999,
-            }}
-          />
-        )}
       </div>
 
       {contextMenu && (
         <ContextMenu
           x={contextMenu.x}
           y={contextMenu.y}
-          entry={contextMenu.entry}
+          entries={contextMenu.entries}
           onClose={() => setContextMenu(null)}
         />
       )}

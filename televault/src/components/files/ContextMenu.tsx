@@ -20,7 +20,7 @@ import clsx from 'clsx'
 interface ContextMenuProps {
   x: number
   y: number
-  entry: VFSEntry
+  entries: VFSEntry[]
   onClose: () => void
 }
 
@@ -33,18 +33,18 @@ interface MenuItem {
   dividerBefore?: boolean
 }
 
-export function ContextMenu({ x, y, entry, onClose }: ContextMenuProps) {
+export function ContextMenu({ x, y, entries, onClose }: ContextMenuProps) {
   const ref = useRef<HTMLDivElement>(null)
   const isTrashView = useFilesStore((s) => s.isTrashView)
   const refreshFolder = useFilesStore((s) => s.refreshFolder)
   const setRenamingId = useFilesStore((s) => s.setRenamingId)
   const setPreviewEntryId = useUIStore((s) => s.setPreviewEntryId)
   const openMoveToModal = useUIStore((s) => s.openMoveToModal)
-  const selectedIds = useFilesStore((s) => s.selectedIds)
   const clearSelection = useFilesStore((s) => s.clearSelection)
 
-  const isBulk = selectedIds.size > 1 && selectedIds.has(entry.id)
-  const targetIds = isBulk ? Array.from(selectedIds) : [entry.id]
+  const isBulk = entries.length > 1
+  const targetIds = entries.map((e) => e.id)
+  const entry = entries[0] // Used for single-item actions (preview, rename, etc.)
   const bulkLabel = (base: string) => isBulk ? `${base} (${targetIds.length} items)` : base
 
   useEffect(() => {

@@ -1,4 +1,4 @@
-import { useEffect, useCallback, useState } from 'react'
+import { useEffect, useCallback, useState, useRef } from 'react'
 import { Sidebar } from '../components/layout/Sidebar'
 import { Toolbar } from '../components/layout/Toolbar'
 import { StatusBar } from '../components/layout/StatusBar'
@@ -18,6 +18,7 @@ import { useUIStore } from '../store/ui.store'
 import { useUpload } from '../hooks/useUpload'
 import { useDownloadListener } from '../hooks/useDownload'
 import { useSearch } from '../hooks/useSearch'
+import { useDragSelect } from '../hooks/useDragSelect'
 import { MoveToModal } from '../components/folders/MoveToModal'
 import { useThemeStore } from '../store/theme.store'
 import type { VFSEntry } from '../types'
@@ -54,8 +55,12 @@ export default function Drive() {
 
   // Context menu state for folder cards
   const [contextMenu, setContextMenu] = useState<{
-    x: number; y: number; entry: VFSEntry
+    x: number; y: number; entries: VFSEntry[]
   } | null>(null)
+
+  // Drag select hook hoisted to cover the entire workspace
+  const cardRefs = useRef<Map<string, HTMLElement>>(new Map())
+  const { state: dragState, onMouseDown, onMouseMove, onMouseUp } = useDragSelect(cardRefs)
 
   useUpload()
   useDownloadListener()
@@ -211,7 +216,14 @@ export default function Drive() {
             </div>
           )}
 
-          <main className="relative flex-1 overflow-hidden">
+          <main 
+            className="relative overflow-hidden flex-1 h-full min-h-screen w-full"
+            style={{ userSelect: 'none', WebkitUserSelect: 'none' }}
+            onMouseDown={onMouseDown}
+            onMouseMove={onMouseMove}
+            onMouseUp={onMouseUp}
+            onMouseLeave={onMouseUp}
+          >
             {isLoading && searchQuery.length <= 1 ? (
               <div className="flex h-full items-center justify-center">
                 <Spinner size="lg" />
@@ -252,20 +264,31 @@ export default function Drive() {
                             const treeFolder = findFolderInTree(tree, folder.id)
                             const actualFolder = treeFolder || folder
                             return (
-                              <FolderCard
+                              <div
                                 key={folder.id}
-                                name={actualFolder?.name ?? folder.name}
-                                fileCount={actualFolder?.fileCount ?? (folder as any).fileCount ?? 0}
-                                onClick={() => selectFile(folder.id, false)}
-                                onDoubleClick={() => setPath(folder.path)}
-                                onContextMenu={(e) => {
-                                  e.preventDefault()
-                                  if (!selectedIds.has(folder.id)) {
-                                    selectFile(folder.id, false)
-                                  }
-                                  setContextMenu({ x: e.clientX, y: e.clientY, entry: folder })
+                                data-file-card="true"
+                                ref={(el) => {
+                                  if (el) cardRefs.current.set(folder.id, el)
+                                  else cardRefs.current.delete(folder.id)
                                 }}
-                              />
+                              >
+                                <FolderCard
+                                  name={actualFolder?.name ?? folder.name}
+                                  fileCount={actualFolder?.fileCount ?? (folder as any).fileCount ?? 0}
+                                  onClick={() => selectFile(folder.id, false)}
+                                  onDoubleClick={() => setPath(folder.path)}
+                                  onContextMenu={(e) => {
+                                    e.preventDefault()
+                                    let targets = [folder]
+                                    if (selectedIds.has(folder.id)) {
+                                      targets = displayEntries.filter((e) => selectedIds.has(e.id))
+                                    } else {
+                                      selectFile(folder.id, false)
+                                    }
+                                    setContextMenu({ x: e.clientX, y: e.clientY, entries: targets })
+                                  }}
+                                />
+                              </div>
                             )
                           })}
                         </div>
@@ -276,7 +299,7 @@ export default function Drive() {
                     {fileEntries.length > 0 && (
                       <section>
                         <h2 style={sectionHeading}>Files</h2>
-                        <FileGrid entries={fileEntries} />
+                        <FileGrid entries={fileEntries} cardRefs={cardRefs} />
                       </section>
                     )}
 
@@ -307,13 +330,31 @@ export default function Drive() {
                   /* ===== LEGACY VIEW (list mode or search) ===== */
                   <div className="flex-1 overflow-hidden">
                     {viewMode === 'grid' ? (
-                      <FileGrid entries={displayEntries} />
+                      <FileGrid entries={displayEntries} cardRefs={cardRefs} />
                     ) : (
                       <FileList entries={displayEntries} />
                     )}
                   </div>
                 )}
               </div>
+            )}
+
+            {/* ── MARQUEE SELECTION BOX (fixed = viewport coords, matches hook) ── */}
+            {dragState.isDragging && dragState.marquee && dragState.marquee.width > 4 && (
+              <div
+                style={{
+                  position: 'fixed',
+                  left: dragState.marquee.x,
+                  top: dragState.marquee.y,
+                  width: dragState.marquee.width,
+                  height: dragState.marquee.height,
+                  border: '1px solid rgba(168,85,247,0.85)',
+                  background: 'rgba(168,85,247,0.12)',
+                  borderRadius: 6,
+                  pointerEvents: 'none',
+                  zIndex: 9999,
+                }}
+              />
             )}
 
             <DropZone />
@@ -337,7 +378,7 @@ export default function Drive() {
           <ContextMenu
             x={contextMenu.x}
             y={contextMenu.y}
-            entry={contextMenu.entry}
+            entries={contextMenu.entries}
             onClose={() => setContextMenu(null)}
           />
         )}

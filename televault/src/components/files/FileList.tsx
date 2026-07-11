@@ -28,7 +28,7 @@ export function FileList({ entries: entriesProp }: FileListProps) {
   const refreshFolder = useFilesStore((s) => s.refreshFolder)
   const setPreviewEntryId = useUIStore((s) => s.setPreviewEntryId)
   const [contextMenu, setContextMenu] = useState<{
-    x: number; y: number; entry: VFSEntry
+    x: number; y: number; entries: VFSEntry[]
   } | null>(null)
   const [sortKey, setSortKey] = useState<SortKey>('name')
   const [sortDir, setSortDir] = useState<SortDir>('asc')
@@ -178,7 +178,13 @@ export function FileList({ entries: entriesProp }: FileListProps) {
                       }}
                       onContextMenu={(e) => {
                         e.preventDefault()
-                        setContextMenu({ x: e.clientX, y: e.clientY, entry })
+                        let targets = [entry]
+                        if (selectedIds.has(entry.id)) {
+                          targets = storeEntries.filter((e) => selectedIds.has(e.id))
+                        } else {
+                          selectFile(entry.id, false)
+                        }
+                        setContextMenu({ x: e.clientX, y: e.clientY, entries: targets })
                       }}
                     >
                       {/* Icon col */}
@@ -251,7 +257,7 @@ export function FileList({ entries: entriesProp }: FileListProps) {
         <ContextMenu
           x={contextMenu.x}
           y={contextMenu.y}
-          entry={contextMenu.entry}
+          entries={contextMenu.entries}
           onClose={() => setContextMenu(null)}
         />
       )}
