@@ -90,19 +90,19 @@ export function Sidebar() {
       style={{ background: 'var(--bg-2)', borderRight: '1px solid var(--border)' }}
     >
       {/* Logo */}
-      <div className="flex items-center gap-2.5 px-5 py-5" style={{ borderBottom: '1px solid var(--border)' }}>
-        <Link to="/" className="flex items-center">
+      <div className="flex items-center px-5" style={{ borderBottom: '1px solid var(--border)' }}>
+        <Link to="/" className="relative flex items-center w-full h-20 overflow-hidden">
           {/* Light Mode Logo: Visible by default, hidden in dark mode */}
           <img
             src={blackLogo}
             alt="TeleVault"
-            className="h-8 w-auto object-contain block dark:hidden"
+            className="absolute left-0 top-1/2 -translate-y-1/2 w-[12rem] h-auto max-w-none block dark:hidden"
           />
           {/* Dark Mode Logo: Hidden by default, visible in dark mode */}
           <img
             src={whiteLogo}
             alt="TeleVault"
-            className="h-8 w-auto object-contain hidden dark:block"
+            className="absolute left-0 top-1/2 -translate-y-1/2 w-[12rem] h-auto max-w-none hidden dark:block"
           />
         </Link>
       </div>
