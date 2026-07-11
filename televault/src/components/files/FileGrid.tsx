@@ -98,20 +98,20 @@ export function FileGrid({ entries: entriesProp }: FileGridProps) {
           </div>
         )}
 
-        {/* ── MARQUEE SELECTION BOX ── */}
+        {/* ── MARQUEE SELECTION BOX (fixed = viewport coords, matches hook) ── */}
         {dragState.isDragging && dragState.marquee && dragState.marquee.width > 4 && (
           <div
             style={{
-              position: 'absolute',
+              position: 'fixed',
               left: dragState.marquee.x,
               top: dragState.marquee.y,
               width: dragState.marquee.width,
               height: dragState.marquee.height,
-              border: '1px solid rgba(139,92,246,0.8)',   // violet-500
-              background: 'rgba(139,92,246,0.12)',
+              border: '1px solid rgba(168,85,247,0.85)',
+              background: 'rgba(168,85,247,0.12)',
               borderRadius: 6,
               pointerEvents: 'none',
-              zIndex: 50,
+              zIndex: 9999,
             }}
           />
         )}

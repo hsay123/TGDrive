@@ -62,7 +62,7 @@ export function FileCard({
       className={clsx(
         'group relative flex cursor-pointer flex-col overflow-hidden rounded-[20px] transition-all duration-200 ease-in-out border',
         selected
-          ? 'border-rose-400 bg-rose-500/10'
+          ? 'border-purple-500/70 bg-white/[0.06] shadow-[0_0_18px_rgba(168,85,247,0.22)]'
           : 'border-transparent bg-white/5 hover:bg-white/[0.08] hover:border-white/10 backdrop-blur-md'
       )}
       onClick={(e) => !isRenaming && onSelect(e.metaKey || e.ctrlKey, e.shiftKey)}
@@ -85,6 +85,7 @@ export function FileCard({
           <img
             src={thumbnailUrl}
             alt={entry.name}
+            draggable="false"
             className="h-full w-full object-cover rounded-xl shadow-lg border border-white/10"
             onError={(e) => {
               e.currentTarget.style.display = 'none'
