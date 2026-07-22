@@ -100,6 +100,8 @@ export interface TeleVaultAPI {
     openExternal: (url: string) => Promise<IpcResult<void>>
     saveApiCredentials: (apiId: string, apiHash: string) => Promise<IpcResult<void>>
     hasApiCredentials: () => Promise<IpcResult<boolean>>
+    getAvatarUrl: () => Promise<IpcResult<string | null>>
+    refreshAvatar: () => Promise<IpcResult<string | null>>
   }
   updater: {
     install: () => Promise<IpcResult<void>>

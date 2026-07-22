@@ -4,33 +4,42 @@ import { isTelevaultAvailable } from '../lib/electron'
 interface AuthUser {
   id: string
   firstName: string
+  lastName?: string
   username: string | null
+  phone?: string
 }
 
 interface AuthStore {
   isLoggedIn: boolean
   user: AuthUser | null
+  avatarUrl: string | null
   isLoading: boolean
   checkSession: () => Promise<void>
   setLoggedIn: (user: AuthUser) => void
+  setAvatarUrl: (url: string | null) => void
   logout: () => Promise<void>
 }
 
 function mapUser(user: {
   id: string
   firstName: string
+  lastName?: string
   username?: string
+  phone?: string
 }): AuthUser {
   return {
     id: user.id,
     firstName: user.firstName,
+    lastName: user.lastName,
     username: user.username || null,
+    phone: user.phone,
   }
 }
 
 export const useAuthStore = create<AuthStore>((set) => ({
   isLoggedIn: false,
   user: null,
+  avatarUrl: null,
   isLoading: true,
 
   checkSession: async () => {
@@ -57,6 +66,10 @@ export const useAuthStore = create<AuthStore>((set) => ({
 
   setLoggedIn: (user) => {
     set({ isLoggedIn: true, user, isLoading: false })
+  },
+
+  setAvatarUrl: (url) => {
+    set({ avatarUrl: url })
   },
 
   logout: async () => {

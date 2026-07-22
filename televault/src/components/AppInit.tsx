@@ -11,6 +11,7 @@ import { useAuthStore } from '../store/auth.store'
 export function AppInit() {
   const navigate = useNavigate()
   const setLoggedIn = useAuthStore((s) => s.setLoggedIn)
+  const setAvatarUrl = useAuthStore((s) => s.setAvatarUrl)
 
   useEffect(() => {
     let cancelled = false
@@ -38,6 +39,11 @@ export function AppInit() {
             firstName: sessionResult.data.user.firstName,
             username: sessionResult.data.user.username || null,
           })
+          window.televault.system.getAvatarUrl().then(res => {
+            if (res.success) {
+              setAvatarUrl(res.data)
+            }
+          }).catch(console.error)
           navigate('/drive', { replace: true })
         } else {
           console.log('[AppInit] No session → /login')

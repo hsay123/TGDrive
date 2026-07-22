@@ -4,6 +4,7 @@ import {
   getApiCredentialsExport,
   getClient,
   getSetting,
+  setSetting,
   initClient,
   mapApiUser,
   persistSession,
@@ -13,6 +14,9 @@ import {
 } from './client'
 import { initializeChannels } from './channels'
 import { clearEntityCache } from './channels'
+import fs from 'fs/promises'
+import path from 'path'
+import { app } from 'electron'
 
 function isRpcError(error: unknown): error is { errorMessage: string } {
   return (
@@ -42,6 +46,51 @@ function handleAuthError(error: unknown): never {
   }
 
   throw error
+}
+
+export async function fetchAndCacheAvatar(userId: string): Promise<string | null> {
+  try {
+    const client = getClient()
+
+    // Avatar cache dir
+    const avatarDir = path.join(app.getPath('userData'), 'avatars')
+    await fs.mkdir(avatarDir, { recursive: true })
+
+    const avatarPath = path.join(avatarDir, `${userId}.jpg`)
+
+    // Check if already cached — skip re-download
+    try {
+      await fs.access(avatarPath)
+      setSetting('avatar_path', avatarPath)
+      console.log('[avatar] using cached avatar:', avatarPath)
+      return avatarPath
+    } catch {
+      // Not cached — download it
+    }
+
+    // downloadProfilePhoto accepts a user entity or 'me'
+    // Returns Buffer | null
+    const buffer = await client.downloadProfilePhoto('me', {
+      isBig: true,   // get full-size photo, not thumbnail
+    })
+
+    if (!buffer || !(buffer instanceof Buffer) || buffer.length === 0) {
+      console.log('[avatar] user has no profile photo')
+      setSetting('avatar_path', '')
+      return null
+    }
+
+    await fs.writeFile(avatarPath, buffer)
+    setSetting('avatar_path', avatarPath)
+    console.log('[avatar] downloaded and cached:', avatarPath, `(${buffer.length} bytes)`)
+
+    return avatarPath
+
+  } catch (err) {
+    // Non-fatal — missing avatar is fine, UI falls back to initial letter
+    console.error('[avatar] fetch failed (non-fatal):', err)
+    return null
+  }
 }
 
 export async function sendCode(
@@ -163,7 +212,13 @@ export async function signIn(
         console.error('[auth] Channel initialization failed after signIn (non-fatal):', err)
         // Don't block login — channels will be retried on first upload
       }
-      return { status: 'success', user: mapApiUser(user) }
+      
+      const mappedUser = mapApiUser(user)
+      if (mappedUser) {
+        fetchAndCacheAvatar(mappedUser.id.toString()).catch(console.error)
+      }
+
+      return { status: 'success', user: mappedUser }
     } catch (error) {
       if (isRpcError(error) && error.errorMessage === 'SESSION_PASSWORD_NEEDED') {
         return { status: 'needs_2fa' }
@@ -203,7 +258,13 @@ export async function complete2FA(password: string): Promise<{ user: TGUser }> {
       console.error('[auth] Channel initialization failed after complete2FA (non-fatal):', err)
       // Don't block login — channels will be retried on first upload
     }
-    return { user: mapApiUser(user) }
+
+    const mappedUser = mapApiUser(user)
+    if (mappedUser) {
+      fetchAndCacheAvatar(mappedUser.id.toString()).catch(console.error)
+    }
+
+    return { user: mappedUser }
   } catch (error) {
     console.error('[auth] complete2FA error:', error)
     handleAuthError(error)
@@ -254,7 +315,16 @@ export async function getCurrentUser(): Promise<TGUser | null> {
       console.error('[auth] Channel init on startup failed (non-fatal):', err)
     }
 
-    return mapApiUser(me)
+    const mappedUser = mapApiUser(me)
+    if (mappedUser) {
+      const userId = mappedUser.id.toString()
+      const avatarPath = getSetting('avatar_path')
+      if (!avatarPath) {
+        fetchAndCacheAvatar(userId).catch(console.error)
+      }
+    }
+
+    return mappedUser
   } catch (error) {
     // If the session key is no longer valid on Telegram's servers, clear it
     // so the user lands on a clean login screen instead of a stuck loading state.

@@ -3,6 +3,7 @@ import { Settings, HardDrive, Clock, Star, Trash2 } from 'lucide-react'
 import { FolderTree } from '../folders/FolderTree'
 import blackLogo from '../../assets/blacklogo.png'
 import whiteLogo from '../../assets/whittelogo.png'
+import { UserAvatar } from '../shared/UserAvatar'
 import { useAuthStore } from '../../store/auth.store'
 import { useFilesStore } from '../../store/files.store'
 import { useState, useEffect } from 'react'
@@ -81,8 +82,6 @@ export function Sidebar() {
       },
     },
   ]
-
-  const initials = user?.firstName?.[0]?.toUpperCase() ?? 'U'
 
   return (
     <aside
@@ -198,9 +197,7 @@ export function Sidebar() {
 
         {/* User row */}
         <div className="flex items-center gap-2 rounded-md px-2 py-1.5 hover:bg-black/5 dark:hover:bg-gray-800 transition-colors group cursor-default">
-          <div className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-violet-600 text-xs font-semibold text-white">
-            {initials}
-          </div>
+          <UserAvatar size={28} borderRadius={8} />
           <span className="flex-1 truncate text-sm" style={{ color: 'var(--fg)' }}>
             {user?.firstName ?? 'User'}
           </span>

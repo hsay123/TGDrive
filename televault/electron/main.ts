@@ -13,6 +13,7 @@ import { registerSettingsIpc } from './ipc/settings.ipc'
 import { registerLicenseIpc } from './ipc/license.ipc'
 import { initUpdater, installUpdate } from './updater'
 import { ipcResult } from './ipc/helpers'
+import { registerSystemAvatarIpc } from './ipc/system.ipc'
 
 config()
 
@@ -136,6 +137,7 @@ function registerAllIpc(): void {
   registerSettingsIpc(ipcMain)
   registerLicenseIpc(ipcMain)
   registerSystemIpc()
+  registerSystemAvatarIpc()
 }
 
 function isPathInsideDir(baseDir: string, targetPath: string): boolean {
@@ -149,6 +151,7 @@ app.whenReady().then(() => {
   const allowedDirs = [
     path.join(userDataPath, 'thumbnails'),
     path.join(userDataPath, 'preview-cache'),
+    path.join(userDataPath, 'avatars'),
   ]
 
   protocol.handle('tvfile', (request) => {

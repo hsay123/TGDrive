@@ -2,6 +2,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { ArrowLeft, Shield, RefreshCw, HardDrive, Lock, Key } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { Button } from '../components/shared/Button'
+import { UserAvatar } from '../components/shared/UserAvatar'
 import { useAuthStore } from '../store/auth.store'
 import { useSync } from '../hooks/useSync'
 import { useState, useEffect } from 'react'
@@ -157,14 +158,30 @@ export default function Settings() {
             {/* User profile */}
             <div className="rounded-xl border border-gray-700 bg-gray-900 p-6">
               <div className="flex items-center gap-4">
-                <div className="flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-2xl bg-violet-600 text-xl font-bold text-white">
-                  {initials}
-                </div>
+                <UserAvatar size={56} borderRadius={14} />
                 <div>
-                  <p className="font-semibold text-gray-100">{user?.firstName ?? 'User'}</p>
+                  <p className="font-semibold text-gray-100">{user?.firstName ?? 'User'} {user?.lastName}</p>
                   {user?.username && (
                     <p className="text-sm text-gray-500">@{user.username}</p>
                   )}
+                  <button
+                    onClick={async () => {
+                      const newUrl = await window.televault.system.refreshAvatar()
+                      useAuthStore.getState().setAvatarUrl(newUrl)
+                    }}
+                    style={{
+                      fontSize: 11,
+                      color: 'var(--muted, #9ca3af)',
+                      background: 'none',
+                      border: 'none',
+                      cursor: 'pointer',
+                      textDecoration: 'underline',
+                      marginTop: 4,
+                      padding: 0
+                    }}
+                  >
+                    Refresh photo
+                  </button>
                 </div>
               </div>
               <div className="mt-6 flex items-center justify-between border-t border-gray-800 pt-4">
