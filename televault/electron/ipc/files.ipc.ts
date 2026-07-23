@@ -377,5 +377,26 @@ export function registerFilesIpc(
       return { bytes: getTotalStorageUsed() }
     })
   )
+
+  ipcMain.handle('files:saveThumbnail', async (_event, fileId: string, dataUrl: string) =>
+    ipcResult(async () => {
+      try {
+        const base64 = dataUrl.replace(/^data:image\/jpeg;base64,/, '')
+        const buffer = Buffer.from(base64, 'base64')
+
+        const thumbDir = path.join(app.getPath('userData'), 'thumbnails')
+        await fs.mkdir(thumbDir, { recursive: true })
+        const thumbPath = path.join(thumbDir, `${fileId}.jpg`)
+
+        await fs.writeFile(thumbPath, buffer)
+        updateFileThumbnail(fileId, thumbPath)
+
+        return { success: true }
+      } catch (err) {
+        console.error('[saveThumbnail] failed:', err)
+        return { success: false }
+      }
+    })
+  )
 }
 

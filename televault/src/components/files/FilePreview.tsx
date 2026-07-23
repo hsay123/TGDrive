@@ -242,7 +242,177 @@ export function FilePreview({ entry, onClose }: FilePreviewProps) {
     )
   }
 
-  // --- FALLBACK VIEWER FOR OTHER TYPES (Video, Audio, PDF, etc) ---
+  // --- FULL-SCREEN VIDEO VIEWER ---
+  if (isVideo) {
+    return createPortal(
+      <div
+        onClick={onClose}
+        style={{
+          position: 'fixed', inset: 0, zIndex: 50,
+          background: 'rgba(0,0,0,0.90)',
+          backdropFilter: 'none',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
+        onContextMenu={handleContextMenu}
+      >
+        <div
+          onClick={(e) => e.stopPropagation()}
+          style={{
+            width: 'min(92vw, 1200px)',
+            maxWidth: '92vw',
+            height: 'min(88vh, 820px)',
+            maxHeight: '88vh',
+            borderRadius: 16,
+            background: '#000',
+            border: '1px solid rgba(255,255,255,0.10)',
+            boxShadow: '0 32px 96px rgba(0,0,0,0.8)',
+            display: 'flex',
+            flexDirection: 'column',
+            overflow: 'hidden',
+            position: 'relative',
+          }}
+        >
+          {isLoadingPreview ? (
+            <div style={{
+              flex: 1, background: '#000',
+              display: 'flex', flexDirection: 'column',
+              alignItems: 'center', justifyContent: 'center', gap: 16,
+              position: 'relative', overflow: 'hidden',
+            }}>
+              {entry.thumbnailPath && (
+                <img
+                  src={`tvfile://thumbnails/${entry.thumbnailPath.split(/[/\\]/).pop()}`}
+                  style={{
+                    position: 'absolute', inset: 0,
+                    width: '100%', height: '100%',
+                    objectFit: 'cover',
+                    filter: 'blur(20px) brightness(0.3)',
+                    transform: 'scale(1.05)',
+                  }}
+                />
+              )}
+              <div style={{ position: 'relative', zIndex: 1, textAlign: 'center' }}>
+                <div style={{
+                  width: 48, height: 48, borderRadius: '50%',
+                  border: '3px solid rgba(255,255,255,0.15)',
+                  borderTop: '3px solid rgba(255,255,255,0.8)',
+                  animation: 'spin 0.8s linear infinite',
+                  margin: '0 auto 14px',
+                }} />
+                <div style={{ color: 'rgba(255,255,255,0.7)', fontSize: 14, fontWeight: 500 }}>
+                  Loading video…
+                </div>
+                <div style={{ color: 'rgba(255,255,255,0.35)', fontSize: 12, marginTop: 4 }}>
+                  Downloading from Telegram
+                </div>
+              </div>
+            </div>
+          ) : previewError ? (
+            <div className="flex flex-col items-center justify-center gap-3 py-12 flex-1">
+              <FileIcon mime={mime} size="lg" />
+              <p className="text-sm font-medium text-red-400">Couldn't load preview</p>
+              <p className="text-xs text-gray-500 max-w-xs text-center">{previewError}</p>
+            </div>
+          ) : previewUrl ? (
+            <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+              <div style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                padding: '12px 16px',
+                background: 'rgba(0,0,0,0.6)',
+                borderBottom: '1px solid rgba(255,255,255,0.08)',
+                flexShrink: 0,
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <div style={{
+                    width: 28, height: 28, borderRadius: 7,
+                    background: 'rgba(0,122,255,0.20)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  }}>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
+                      stroke="rgba(0,122,255,0.9)" strokeWidth="2" strokeLinecap="round">
+                      <polygon points="23 7 16 12 23 17 23 7"/>
+                      <rect x="1" y="5" width="15" height="14" rx="2" ry="2"/>
+                    </svg>
+                  </div>
+                  <div>
+                    <div style={{
+                      fontSize: 13, fontWeight: 600,
+                      color: 'rgba(255,255,255,0.92)',
+                      maxWidth: 600,
+                      overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                    }}>{entry.name}</div>
+                    <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.40)', marginTop: 1 }}>
+                      {formatFileSize(entry.size ?? 0)} · {entry.mimeType}
+                    </div>
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <button
+                    onClick={() => window.televault.files.download(entry.id)}
+                    style={{
+                      padding: '5px 12px', borderRadius: 8,
+                      background: 'rgba(255,255,255,0.10)',
+                      border: '1px solid rgba(255,255,255,0.14)',
+                      color: 'rgba(255,255,255,0.80)',
+                      fontSize: 12, fontWeight: 600, cursor: 'pointer',
+                    }}
+                  >
+                    Download
+                  </button>
+                  <button
+                    onClick={onClose}
+                    style={{
+                      width: 28, height: 28, borderRadius: '50%',
+                      background: 'rgba(255,255,255,0.10)',
+                      border: '1px solid rgba(255,255,255,0.14)',
+                      color: 'rgba(255,255,255,0.7)',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      cursor: 'pointer', fontSize: 14,
+                    }}
+                  >✕</button>
+                </div>
+              </div>
+
+              <div style={{
+                flex: 1,
+                background: '#000',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                overflow: 'hidden',
+              }}>
+                <video
+                  src={previewUrl}
+                  controls
+                  autoPlay
+                  playsInline
+                  style={{
+                    width: '100%',
+                    height: '100%',
+                    objectFit: 'contain',
+                    display: 'block',
+                    outline: 'none',
+                    background: '#000',
+                  }}
+                  onError={(e) => {
+                    console.error('[video preview] playback error:', e)
+                    setPreviewError('Video failed to play. Try downloading it instead.')
+                  }}
+                />
+              </div>
+            </div>
+          ) : null}
+        </div>
+        <ContextMenuDropdown />
+      </div>,
+      document.body
+    )
+  }
+
+  // --- FALLBACK VIEWER FOR OTHER TYPES (Audio, PDF, etc) ---
   const renderPreviewBody = () => {
     if (isLoadingPreview) {
       return (
@@ -263,19 +433,7 @@ export function FilePreview({ entry, onClose }: FilePreviewProps) {
       )
     }
 
-    if (isVideo && previewUrl) {
-      return (
-        <div className="flex justify-center" onContextMenu={handleContextMenu}>
-          {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
-          <video
-            src={previewUrl}
-            controls
-            autoPlay
-            className="max-h-[70vh] max-w-full rounded-xl shadow-2xl"
-          />
-        </div>
-      )
-    }
+
 
     if (isAudio && previewUrl) {
       return (

@@ -36,6 +36,7 @@ const televault: TeleVaultAPI = {
     restoreVersion: (versionId) => ipcRenderer.invoke('files:restoreVersion', versionId),
     getTrash: () => ipcRenderer.invoke('files:trash'),
     downloadToTemp: (fileId) => ipcRenderer.invoke('files:downloadToTemp', fileId),
+    saveThumbnail: (fileId, dataUrl) => ipcRenderer.invoke('files:saveThumbnail', fileId, dataUrl),
     readLocalFile: (filePath) => ipcRenderer.invoke('files:readLocalFile', filePath),
     backfillThumbnails: () => ipcRenderer.invoke('files:backfillThumbnails'),
     storageUsed: () => ipcRenderer.invoke('files:storageUsed'),

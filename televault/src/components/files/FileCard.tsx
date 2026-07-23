@@ -1,4 +1,4 @@
-import { useRef } from 'react'
+import { useRef, useState, useEffect } from 'react'
 import clsx from 'clsx'
 import { Folder, Lock, Star } from 'lucide-react'
 import toast from 'react-hot-toast'
@@ -6,6 +6,8 @@ import type { VFSEntry } from '../../types'
 import { FileIcon } from './FileIcon'
 import { toThumbnailUrl } from '../../lib/tvfile'
 import { useFilesStore } from '../../store/files.store'
+import { generateVideoThumbFromFile } from '../../utils/videoThumbnail'
+
 //file thumbnail card
 interface FileCardProps {
   entry: VFSEntry
@@ -23,8 +25,43 @@ export function FileCard({
   onContextMenu,
 }: FileCardProps) {
   const isFolder = entry.type === 'folder'
-  const thumbnailUrl =
-    entry.type === 'file' ? toThumbnailUrl(entry.thumbnailPath) : null
+  const isVideo = entry.type === 'file' && entry.mimeType?.startsWith('video/')
+  const isImage = entry.type === 'file' && entry.mimeType?.startsWith('image/')
+  
+  const [thumbSrc, setThumbSrc] = useState<string | null>(null)
+  const [thumbLoading, setThumbLoading] = useState(false)
+  const generatingRef = useRef(false)
+
+  useEffect(() => {
+    if (entry.type !== 'file') return
+    
+    // Case 1: already have a cached thumbnail in DB
+    if (entry.thumbnailPath) {
+      const filename = entry.thumbnailPath.split(/[/\\]/).pop()
+      setThumbSrc(`tvfile://thumbnails/${filename}`)
+      return
+    }
+
+    // Case 2: image — try tvfile directly (no generation needed)
+    if (isImage) return
+
+    // Case 3: video — generate thumbnail now
+    if (!isVideo) return
+    if (generatingRef.current) return
+    generatingRef.current = true
+
+    setThumbLoading(true)
+
+    generateVideoThumbFromFile(entry.id, entry.mimeType ?? null)
+      .then(url => {
+        if (url) setThumbSrc(url)
+      })
+      .catch(err => console.error('[FileCard] thumb gen failed:', err))
+      .finally(() => setThumbLoading(false))
+
+  }, [entry, isVideo, isImage])
+
+  const finalThumbnailUrl = thumbSrc || (entry.type === 'file' ? toThumbnailUrl(entry.thumbnailPath) : null)
   const isStarred = entry.type === 'file' && (entry as any).starred === 1
 
   const renamingId = useFilesStore((s) => s.renamingId)
@@ -81,19 +118,33 @@ export function FileCard({
       <div className="relative flex aspect-square w-full items-center justify-center p-3">
         {isFolder ? (
           <Folder className="h-16 w-16 text-violet-400" />
-        ) : thumbnailUrl ? (
-          <img
-            src={thumbnailUrl}
-            alt={entry.name}
-            draggable="false"
-            className="h-full w-full object-cover rounded-xl shadow-lg border border-white/10"
-            onError={(e) => {
-              e.currentTarget.style.display = 'none'
-            }}
-          />
+        ) : finalThumbnailUrl ? (
+          <div className="relative w-full h-full">
+            <img
+              src={finalThumbnailUrl}
+              alt={entry.name}
+              draggable="false"
+              className="absolute inset-0 h-full w-full object-cover rounded-xl shadow-lg border border-white/10"
+              onError={(e) => {
+                e.currentTarget.style.display = 'none'
+              }}
+            />
+            {/* Play button overlay for videos */}
+            {isVideo && (
+              <div className="absolute inset-0 flex items-center justify-center bg-black/25 rounded-xl pointer-events-none">
+                <div className="flex h-9 w-9 items-center justify-center rounded-full bg-white/90 shadow-[0_2px_12px_rgba(0,0,0,0.3)]">
+                  <div className="ml-[3px] h-0 w-0 border-y-[7px] border-y-transparent border-l-[12px] border-l-[#111]" />
+                </div>
+              </div>
+            )}
+          </div>
+        ) : thumbLoading ? (
+          <div className="h-full w-full flex items-center justify-center rounded-xl bg-black/[0.06] dark:bg-black/20 border border-black/[0.06] dark:border-white/5 shadow-inner">
+            <div className="h-7 w-7 rounded-full border-[2.5px] border-white/10 border-t-white/50 animate-spin" />
+          </div>
         ) : (
           <div className="h-full w-full flex items-center justify-center rounded-xl bg-black/[0.06] dark:bg-black/20 border border-black/[0.06] dark:border-white/5 shadow-inner">
-            <FileIcon mime={entry.mimeType} size="lg" />
+            <FileIcon mime={entry.type === 'file' ? entry.mimeType : undefined} size="lg" />
           </div>
         )}
       </div>
