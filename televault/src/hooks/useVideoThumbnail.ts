@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { generateVideoThumbnail } from '../utils/videoThumbnail'
+import { extractVideoFrame } from '../utils/videoThumbnail'
 
 export function useVideoThumbnail(
   fileId: string,
@@ -34,7 +34,7 @@ export function useVideoThumbnail(
         const filename = cachedPath.split(/[/\\]/).pop()
         const videoUrl = `tvfile://preview-cache/${filename}`
 
-        const dataUrl = await generateVideoThumbnail(videoUrl, 1.0)
+        const dataUrl = await extractVideoFrame(videoUrl, 1.0)
         if (cancelled || !dataUrl) return
 
         setThumbUrl(dataUrl)
