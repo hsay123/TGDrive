@@ -10,6 +10,7 @@ import {
   Trash2,
   Trash,
   Star,
+  Image as ImageIcon,
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import type { VFSEntry } from '../../types'
@@ -94,6 +95,22 @@ export function ContextMenu({ x, y, entries, onClose }: ContextMenuProps) {
       },
     },
   ]
+
+  // Only for single video files without a cached thumbnail
+  if (isFile && !isBulk && entry.mimeType?.startsWith('video/') && !entry.thumbnailPath) {
+    items.push({
+      label: 'Generate Thumbnail',
+      icon: <ImageIcon className="h-3.5 w-3.5" />,
+      action: () => {
+        onClose()
+        window.dispatchEvent(
+          new CustomEvent('televault:regenerate-thumb', {
+            detail: { fileId: entry.id },
+          })
+        )
+      },
+    })
+  }
 
   if (isFile) {
     items.push({

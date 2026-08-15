@@ -6,7 +6,7 @@ import type { VFSEntry } from '../../types'
 import { FileIcon } from './FileIcon'
 import { toThumbnailUrl } from '../../lib/tvfile'
 import { useFilesStore } from '../../store/files.store'
-import { generateVideoThumbFromFile } from '../../utils/videoThumbnail'
+import { extractVideoFrame } from '../../utils/videoThumbnail'
 
 //file thumbnail card
 interface FileCardProps {
@@ -26,42 +26,87 @@ export function FileCard({
 }: FileCardProps) {
   const isFolder = entry.type === 'folder'
   const isVideo = entry.type === 'file' && entry.mimeType?.startsWith('video/')
-  const isImage = entry.type === 'file' && entry.mimeType?.startsWith('image/')
-  
-  const [thumbSrc, setThumbSrc] = useState<string | null>(null)
-  const [thumbLoading, setThumbLoading] = useState(false)
-  const generatingRef = useRef(false)
 
+  // ── Video thumbnail state ──────────────────────────────────────────────────
+  const [videoThumb, setVideoThumb] = useState<string | null>(null)
+  const [thumbState, setThumbState] = useState<'idle' | 'loading' | 'done' | 'failed'>('idle')
+
+  // Reset when the card slot shows a different file
   useEffect(() => {
-    if (entry.type !== 'file') return
-    
-    // Case 1: already have a cached thumbnail in DB
-    if (entry.thumbnailPath) {
-      const filename = entry.thumbnailPath.split(/[/\\]/).pop()
-      setThumbSrc(`tvfile://thumbnails/${filename}`)
-      return
-    }
+    setVideoThumb(null)
+    setThumbState('idle')
+  }, [entry.id])
 
-    // Case 2: image — try tvfile directly (no generation needed)
-    if (isImage) return
-
-    // Case 3: video — generate thumbnail now
+  // Generate a thumbnail for videos that don't have one cached yet
+  useEffect(() => {
     if (!isVideo) return
-    if (generatingRef.current) return
-    generatingRef.current = true
+    if (entry.thumbnailPath) return
+    if (thumbState !== 'idle') return
 
-    setThumbLoading(true)
+    setThumbState('loading')
 
-    generateVideoThumbFromFile(entry.id, entry.mimeType ?? null)
-      .then(url => {
-        if (url) setThumbSrc(url)
-      })
-      .catch(err => console.error('[FileCard] thumb gen failed:', err))
-      .finally(() => setThumbLoading(false))
+    let cancelled = false
 
-  }, [entry, isVideo, isImage])
+    ;(async () => {
+      try {
+        // Step 1 — download video to preview-cache (returns IpcResult wrapper)
+        const tempResult = await window.televault.files.downloadToTemp(entry.id)
+        if (cancelled) return
+        if (!tempResult.success || !tempResult.data) {
+          setThumbState('failed')
+          return
+        }
+        const cachedPath = tempResult.data
 
-  const finalThumbnailUrl = thumbSrc || (entry.type === 'file' ? toThumbnailUrl(entry.thumbnailPath) : null)
+        // Step 2 — build tvfile:// URL for the cached video
+        const filename = cachedPath.split(/[/\\]/).pop()
+        if (!filename) {
+          setThumbState('failed')
+          return
+        }
+        const videoUrl = `tvfile://preview-cache/${filename}`
+
+        // Step 3 — extract a frame (verified working)
+        const dataUrl = await extractVideoFrame(videoUrl, 1.5)
+        if (cancelled) return
+
+        if (!dataUrl) {
+          setThumbState('failed')
+          return
+        }
+
+        // Step 4 — show it immediately
+        setVideoThumb(dataUrl)
+        setThumbState('done')
+
+        // Step 5 — persist to disk (non-blocking)
+        window.televault.files.saveThumbnail(entry.id, dataUrl)
+          .catch((e) => console.error('[FileCard] saveThumbnail:', e))
+
+      } catch (err) {
+        if (!cancelled) {
+          console.error('[FileCard] thumb generation failed:', err)
+          setThumbState('failed')
+        }
+      }
+    })()
+
+    return () => { cancelled = true }
+  }, [entry.id, isVideo, entry.thumbnailPath, thumbState])
+
+  // Allow the "Generate Thumbnail" context-menu action to force a retry
+  useEffect(() => {
+    function onRegenerate(e: Event) {
+      const ev = e as CustomEvent<{ fileId: string }>
+      if (ev.detail.fileId === entry.id) {
+        setVideoThumb(null)
+        setThumbState('idle')
+      }
+    }
+    window.addEventListener('televault:regenerate-thumb', onRegenerate)
+    return () => window.removeEventListener('televault:regenerate-thumb', onRegenerate)
+  }, [entry.id])
+
   const isStarred = entry.type === 'file' && (entry as any).starred === 1
 
   const renamingId = useFilesStore((s) => s.renamingId)
@@ -118,34 +163,56 @@ export function FileCard({
       <div className="relative flex aspect-square w-full items-center justify-center p-3">
         {isFolder ? (
           <Folder className="h-16 w-16 text-violet-400" />
-        ) : finalThumbnailUrl ? (
-          <div className="relative w-full h-full">
-            <img
-              src={finalThumbnailUrl}
-              alt={entry.name}
-              draggable="false"
-              className="absolute inset-0 h-full w-full object-cover rounded-xl shadow-lg border border-white/10"
-              onError={(e) => {
-                e.currentTarget.style.display = 'none'
-              }}
-            />
-            {/* Play button overlay for videos */}
-            {isVideo && (
-              <div className="absolute inset-0 flex items-center justify-center bg-black/25 rounded-xl pointer-events-none">
-                <div className="flex h-9 w-9 items-center justify-center rounded-full bg-white/90 shadow-[0_2px_12px_rgba(0,0,0,0.3)]">
-                  <div className="ml-[3px] h-0 w-0 border-y-[7px] border-y-transparent border-l-[12px] border-l-[#111]" />
-                </div>
-              </div>
-            )}
-          </div>
-        ) : thumbLoading ? (
-          <div className="h-full w-full flex items-center justify-center rounded-xl bg-black/[0.06] dark:bg-black/20 border border-black/[0.06] dark:border-white/5 shadow-inner">
-            <div className="h-7 w-7 rounded-full border-[2.5px] border-white/10 border-t-white/50 animate-spin" />
-          </div>
         ) : (
-          <div className="h-full w-full flex items-center justify-center rounded-xl bg-black/[0.06] dark:bg-black/20 border border-black/[0.06] dark:border-white/5 shadow-inner">
-            <FileIcon mime={entry.type === 'file' ? entry.mimeType : undefined} size="lg" />
-          </div>
+          (() => {
+            // 1. DB-cached thumbnail (images + previously generated video thumbs)
+            const cachedThumb = toThumbnailUrl(entry.type === 'file' ? entry.thumbnailPath : null)
+            if (cachedThumb) {
+              return (
+                <div className="relative h-full w-full overflow-hidden rounded-xl shadow-lg border border-white/10">
+                  <img
+                    src={cachedThumb}
+                    alt={entry.name}
+                    draggable="false"
+                    className="absolute inset-0 h-full w-full object-cover"
+                    onError={(e) => { e.currentTarget.style.display = 'none' }}
+                  />
+                  {isVideo && <VideoPlayBadge />}
+                </div>
+              )
+            }
+
+            // 2. Freshly generated video thumbnail (in-memory, not yet saved)
+            if (isVideo && videoThumb) {
+              return (
+                <div className="relative h-full w-full overflow-hidden rounded-xl shadow-lg border border-white/10">
+                  <img
+                    src={videoThumb}
+                    alt={entry.name}
+                    draggable="false"
+                    className="absolute inset-0 h-full w-full object-cover"
+                  />
+                  <VideoPlayBadge />
+                </div>
+              )
+            }
+
+            // 3. Video thumbnail generating — spinner
+            if (isVideo && thumbState === 'loading') {
+              return (
+                <div className="flex h-full w-full items-center justify-center rounded-xl bg-black/[0.06] dark:bg-black/20 border border-black/[0.06] dark:border-white/5 shadow-inner">
+                  <div className="h-7 w-7 rounded-full border-[2.5px] border-white/10 border-t-[#5e5ce6] animate-spin" />
+                </div>
+              )
+            }
+
+            // 4. Fallback — generic file icon
+            return (
+              <div className="flex h-full w-full items-center justify-center rounded-xl bg-black/[0.06] dark:bg-black/20 border border-black/[0.06] dark:border-white/5 shadow-inner">
+                <FileIcon mime={entry.type === 'file' ? entry.mimeType : undefined} size="lg" />
+              </div>
+            )
+          })()
         )}
       </div>
 
@@ -177,6 +244,37 @@ export function FileCard({
             )}
           </div>
         )}
+      </div>
+    </div>
+  )
+}
+
+function VideoPlayBadge() {
+  return (
+    <div
+      className="pointer-events-none absolute inset-0 flex items-center justify-center"
+      style={{ background: 'rgba(0,0,0,0.18)' }}
+    >
+      <div
+        className="flex items-center justify-center"
+        style={{
+          width: 30,
+          height: 30,
+          borderRadius: '50%',
+          background: 'rgba(255,255,255,0.86)',
+          boxShadow: '0 2px 8px rgba(0,0,0,0.28)',
+        }}
+      >
+        <div
+          style={{
+            width: 0,
+            height: 0,
+            borderTop: '5px solid transparent',
+            borderBottom: '5px solid transparent',
+            borderLeft: '9px solid #111',
+            marginLeft: 2,
+          }}
+        />
       </div>
     </div>
   )
