@@ -52,6 +52,7 @@ export interface TeleVaultAPI {
     restoreVersion: (versionId: string) => Promise<IpcResult<void>>
     getTrash: () => Promise<IpcResult<TrashRow[]>>
     downloadToTemp: (fileId: string) => Promise<IpcResult<string>>
+    downloadFirstChunkToTemp: (fileId: string) => Promise<IpcResult<string>>
     saveThumbnail: (fileId: string, dataUrl: string) => Promise<IpcResult<{ success: boolean }>>
     readLocalFile: (filePath: string) => Promise<IpcResult<Uint8Array>>
     backfillThumbnails: () => Promise<IpcResult<{ processed: number; total: number }>>

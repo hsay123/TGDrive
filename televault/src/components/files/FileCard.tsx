@@ -1,4 +1,4 @@
-import { useRef, useState, useEffect } from 'react'
+import { useRef, useState, useEffect, useCallback } from 'react'
 import clsx from 'clsx'
 import { Folder, Lock, Star } from 'lucide-react'
 import toast from 'react-hot-toast'
@@ -17,6 +17,29 @@ interface FileCardProps {
   onContextMenu: (e: React.MouseEvent) => void
 }
 
+// ── Global concurrency guard: only 1 thumbnail downloads at a time ──────────
+let thumbGenActive = 0
+const THUMB_CONCURRENCY = 1
+const thumbQueue: Array<() => void> = []
+
+function acquireThumbSlot(): Promise<void> {
+  if (thumbGenActive < THUMB_CONCURRENCY) {
+    thumbGenActive++
+    return Promise.resolve()
+  }
+  return new Promise((resolve) => thumbQueue.push(resolve))
+}
+
+function releaseThumbSlot(): void {
+  const next = thumbQueue.shift()
+  if (next) {
+    next()
+  } else {
+    thumbGenActive--
+  }
+}
+// ────────────────────────────────────────────────────────────────────────────
+
 export function FileCard({
   entry,
   selected,
@@ -30,6 +53,10 @@ export function FileCard({
   // ── Video thumbnail state ──────────────────────────────────────────────────
   const [videoThumb, setVideoThumb] = useState<string | null>(null)
   const [thumbState, setThumbState] = useState<'idle' | 'loading' | 'done' | 'failed'>('idle')
+  const cardRef = useRef<HTMLDivElement>(null)
+  const visibleRef = useRef(false)
+  const thumbStateRef = useRef(thumbState)
+  thumbStateRef.current = thumbState
 
   // Reset when the card slot shows a different file
   useEffect(() => {
@@ -37,62 +64,73 @@ export function FileCard({
     setThumbState('idle')
   }, [entry.id])
 
-  // Generate a thumbnail for videos that don't have one cached yet
-  useEffect(() => {
+  const generateThumb = useCallback(async () => {
     if (!isVideo) return
     if (entry.thumbnailPath) return
-    if (thumbState !== 'idle') return
+    if (thumbStateRef.current !== 'idle') return
 
     setThumbState('loading')
+    let released = false
 
-    let cancelled = false
+    try {
+      await acquireThumbSlot()
 
-    ;(async () => {
-      try {
-        // Step 1 — download video to preview-cache (returns IpcResult wrapper)
-        const tempResult = await window.televault.files.downloadToTemp(entry.id)
-        if (cancelled) return
-        if (!tempResult.success || !tempResult.data) {
-          setThumbState('failed')
-          return
-        }
-        const cachedPath = tempResult.data
-
-        // Step 2 — build tvfile:// URL for the cached video
-        const filename = cachedPath.split(/[/\\]/).pop()
-        if (!filename) {
-          setThumbState('failed')
-          return
-        }
-        const videoUrl = `tvfile://preview-cache/${filename}`
-
-        // Step 3 — extract a frame (verified working)
-        const dataUrl = await extractVideoFrame(videoUrl, 1.5)
-        if (cancelled) return
-
-        if (!dataUrl) {
-          setThumbState('failed')
-          return
-        }
-
-        // Step 4 — show it immediately
-        setVideoThumb(dataUrl)
-        setThumbState('done')
-
-        // Step 5 — persist to disk (non-blocking)
-        window.televault.files.saveThumbnail(entry.id, dataUrl)
-          .catch((e) => console.error('[FileCard] saveThumbnail:', e))
-
-      } catch (err) {
-        if (!cancelled) {
-          console.error('[FileCard] thumb generation failed:', err)
-          setThumbState('failed')
-        }
+      // Double-check state after waiting in queue (card may have unmounted / file changed)
+      if (thumbStateRef.current !== 'loading') {
+        releaseThumbSlot()
+        released = true
+        return
       }
-    })()
 
-    return () => { cancelled = true }
-  }, [entry.id, isVideo, entry.thumbnailPath, thumbState])
+      // ── Fast path: download ONLY the first chunk ─────────────────────────
+      const partialResult = await window.televault.files.downloadFirstChunkToTemp(entry.id)
+      if (!partialResult.success || !partialResult.data) {
+        setThumbState('failed')
+        return
+      }
+
+      const filename = partialResult.data.split(/[/\\]/).pop()
+      if (!filename) { setThumbState('failed'); return }
+
+      const videoUrl = `tvfile://preview-cache/${filename}`
+      const dataUrl = await extractVideoFrame(videoUrl, 1.5)
+
+      if (!dataUrl) { setThumbState('failed'); return }
+
+      setVideoThumb(dataUrl)
+      setThumbState('done')
+
+      // Persist thumbnail to disk (non-blocking)
+      window.televault.files.saveThumbnail(entry.id, dataUrl)
+        .catch((e) => console.error('[FileCard] saveThumbnail:', e))
+
+    } catch (err) {
+      console.error('[FileCard] thumb generation failed:', err)
+      setThumbState('failed')
+    } finally {
+      if (!released) releaseThumbSlot()
+    }
+  }, [entry.id, entry.thumbnailPath, isVideo])
+
+  // Trigger generation only when the card becomes visible
+  useEffect(() => {
+    if (!isVideo || entry.thumbnailPath) return
+
+    const el = cardRef.current
+    if (!el) return
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting && !visibleRef.current) {
+          visibleRef.current = true
+          generateThumb()
+        }
+      },
+      { threshold: 0.1 }
+    )
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [isVideo, entry.thumbnailPath, generateThumb])
 
   // Allow the "Generate Thumbnail" context-menu action to force a retry
   useEffect(() => {
@@ -100,6 +138,7 @@ export function FileCard({
       const ev = e as CustomEvent<{ fileId: string }>
       if (ev.detail.fileId === entry.id) {
         setVideoThumb(null)
+        visibleRef.current = false
         setThumbState('idle')
       }
     }
@@ -141,6 +180,7 @@ export function FileCard({
 
   return (
     <div
+      ref={cardRef}
       className={clsx(
         'group relative flex cursor-pointer flex-col overflow-hidden rounded-[20px] transition-all duration-200 ease-in-out border select-none outline-none',
         selected

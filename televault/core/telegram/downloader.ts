@@ -218,3 +218,46 @@ export async function downloadFile(
     }
   }
 }
+
+/**
+ * Downloads ONLY the first chunk (index 0) of a file to a preview-cache path.
+ * Much faster than a full download — enough data for a video frame extraction.
+ * Returns the local path of the partial file.
+ */
+export async function downloadFirstChunkToTemp(fileId: string): Promise<string> {
+  const file = getFileById(fileId)
+  if (!file) throw new Error(`File not found: ${fileId}`)
+
+  const chunks = getChunksByFileId(fileId)
+  if (chunks.length === 0) throw new Error(`No chunks for file: ${fileId}`)
+
+  // Sort by chunk_index to ensure we always get the first real chunk
+  const sorted = [...chunks].sort((a, b) => a.chunk_index - b.chunk_index)
+  const firstChunk = sorted[0]
+
+  const cacheDir = path.join(app.getPath('userData'), 'preview-cache')
+  await fs.promises.mkdir(cacheDir, { recursive: true })
+
+  const ext = path.extname(file.name)
+  // Use a separate suffix so it doesn't collide with the full-download cache entry
+  const cachedPath = path.join(cacheDir, `${fileId}-partial${ext}`)
+
+  // Return existing partial if already cached
+  try {
+    await fs.promises.access(cachedPath)
+    return cachedPath
+  } catch {
+    // Not cached yet — download chunk 0
+  }
+
+  const tempPath = cachedPath + '.tmp'
+  await downloadFromTelegram({
+    messageId: firstChunk.message_id,
+    channelId: firstChunk.channel_id,
+    destPath: tempPath,
+  })
+
+  // Rename atomically so a concurrent call doesn't see a half-written file
+  await fs.promises.rename(tempPath, cachedPath)
+  return cachedPath
+}

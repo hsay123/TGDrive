@@ -324,6 +324,14 @@ export function registerFilesIpc(
     })
   )
 
+  // Preview: download ONLY the first chunk — fast path for thumbnail generation
+  ipcMain.handle('files:downloadFirstChunkToTemp', async (_event, fileId: string) =>
+    ipcResult(async () => {
+      const { downloadFirstChunkToTemp } = await import('../../core/telegram/downloader')
+      return downloadFirstChunkToTemp(fileId)
+    })
+  )
+
   // Preview: read a local file as Buffer (legacy — prefer tvfile:// URLs)
   ipcMain.handle('files:readLocalFile', async (_event, filePath: string) =>
     ipcResult(async () => {
