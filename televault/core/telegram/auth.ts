@@ -48,10 +48,17 @@ function handleAuthError(error: unknown): never {
   throw error
 }
 
+/** Download the current user's profile photo (full-size) into a Buffer. */
+async function fetchProfilePhotoBuffer(): Promise<Buffer | null> {
+  const client = getClient()
+  const buffer = await client.downloadProfilePhoto('me', {
+    isBig: true, // get full-size photo, not thumbnail
+  })
+  return buffer instanceof Buffer && buffer.length > 0 ? buffer : null
+}
+
 export async function fetchAndCacheAvatar(userId: string): Promise<string | null> {
   try {
-    const client = getClient()
-
     // Avatar cache dir
     const avatarDir = path.join(app.getPath('userData'), 'avatars')
     await fs.mkdir(avatarDir, { recursive: true })
@@ -68,13 +75,9 @@ export async function fetchAndCacheAvatar(userId: string): Promise<string | null
       // Not cached — download it
     }
 
-    // downloadProfilePhoto accepts a user entity or 'me'
-    // Returns Buffer | null
-    const buffer = await client.downloadProfilePhoto('me', {
-      isBig: true,   // get full-size photo, not thumbnail
-    })
+    const buffer = await fetchProfilePhotoBuffer()
 
-    if (!buffer || !(buffer instanceof Buffer) || buffer.length === 0) {
+    if (!buffer) {
       console.log('[avatar] user has no profile photo')
       setSetting('avatar_path', '')
       return null
@@ -89,6 +92,31 @@ export async function fetchAndCacheAvatar(userId: string): Promise<string | null
   } catch (err) {
     // Non-fatal — missing avatar is fine, UI falls back to initial letter
     console.error('[avatar] fetch failed (non-fatal):', err)
+    return null
+  }
+}
+
+/**
+ * Download the current user's profile photo into a fresh temp file WITHOUT
+ * touching the cached avatar or the avatar_path setting. Used by
+ * system:refreshAvatar so the existing cached photo survives until a new one
+ * is confirmed written. Returns the temp path, or null on failure / no photo.
+ */
+export async function downloadAvatarToTemp(userId: string): Promise<string | null> {
+  try {
+    const avatarDir = path.join(app.getPath('userData'), 'avatars')
+    await fs.mkdir(avatarDir, { recursive: true })
+    const tempPath = path.join(avatarDir, `${userId}.tmp-${Date.now()}`)
+
+    const buffer = await fetchProfilePhotoBuffer()
+    if (!buffer) {
+      return null
+    }
+
+    await fs.writeFile(tempPath, buffer)
+    return tempPath
+  } catch (err) {
+    console.error('[avatar] refresh download failed (non-fatal):', err)
     return null
   }
 }

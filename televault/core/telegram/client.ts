@@ -5,12 +5,18 @@ import { getDb } from '../db/db'
 
 export const CHUNK_SIZE_MB = 512 * 1024
 
+/**
+ * Canonical shape for a Telegram user, produced ONLY by mapApiUser (main
+ * process) and passed through the IPC bridge to the renderer untouched.
+ * Unset fields are `null` — never `''`/`undefined` — so every consumer can
+ * rely on a single convention.
+ */
 export interface TGUser {
   id: string
-  firstName: string
-  lastName: string
-  username: string
-  phone: string
+  firstName: string | null
+  lastName: string | null
+  username: string | null
+  phone: string | null
 }
 
 let _client: TelegramClient | null = null
@@ -62,16 +68,21 @@ export function deleteSetting(key: string): void {
   db.prepare('DELETE FROM settings WHERE key = ?').run(key)
 }
 
+/**
+ * The single source of truth for mapping a raw Telegram user into the
+ * canonical TGUser shape used everywhere (main process, IPC bridge, renderer
+ * store). Do not re-map the user anywhere else.
+ */
 export function mapApiUser(user: Api.TypeUser): TGUser {
   if (!(user instanceof Api.User)) {
     throw new Error('Invalid user entity')
   }
   return {
     id: user.id.toString(),
-    firstName: user.firstName ?? '',
-    lastName: user.lastName ?? '',
-    username: user.username ?? '',
-    phone: user.phone ?? '',
+    firstName: user.firstName ?? null,
+    lastName: user.lastName ?? null,
+    username: user.username ?? null,
+    phone: user.phone ?? null,
   }
 }
 

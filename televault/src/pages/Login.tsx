@@ -25,6 +25,7 @@ const RESEND_TIMEOUT = 30
 export default function Login() {
   const navigate = useNavigate()
   const setLoggedIn = useAuthStore((s) => s.setLoggedIn)
+  const setAvatarUrl = useAuthStore((s) => s.setAvatarUrl)
   const [step, setStep] = useState<Step>('phone')
   const [dialCode, setDialCode] = useState('+91')
   const [phone, setPhone] = useState('')
@@ -116,11 +117,9 @@ export default function Login() {
         }
         throw new Error(result.error)
       }
-      setLoggedIn({
-        id: result.data!.user.id,
-        firstName: result.data!.user.firstName,
-        username: result.data!.user.username || null,
-      })
+      setLoggedIn(result.data!.user)
+      const avatar = await window.televault.system.getAvatarUrl()
+      if (avatar.success) setAvatarUrl(avatar.data ?? null)
       navigate('/drive', { replace: true })
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Verification failed'
@@ -144,11 +143,9 @@ export default function Login() {
     try {
       const result = await window.televault.auth.check2FA(password)
       if (!result.success) throw new Error(result.error)
-      setLoggedIn({
-        id: result.data!.user.id,
-        firstName: result.data!.user.firstName,
-        username: result.data!.user.username || null,
-      })
+      setLoggedIn(result.data!.user)
+      const avatar = await window.televault.system.getAvatarUrl()
+      if (avatar.success) setAvatarUrl(avatar.data ?? null)
       navigate('/drive', { replace: true })
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Wrong password')

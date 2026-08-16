@@ -166,8 +166,13 @@ export default function Settings() {
                   )}
                   <button
                     onClick={async () => {
-                      const newUrl = await window.televault.system.refreshAvatar()
-                      useAuthStore.getState().setAvatarUrl(newUrl)
+                      const result = await window.televault.system.refreshAvatar()
+                      if (result.success && result.data) {
+                        useAuthStore.getState().setAvatarUrl(result.data)
+                        toast.success('Profile photo refreshed')
+                      } else {
+                        toast.error(result.error ?? 'Could not refresh profile photo')
+                      }
                     }}
                     style={{
                       fontSize: 11,

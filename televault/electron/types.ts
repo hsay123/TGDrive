@@ -104,6 +104,7 @@ export interface TeleVaultAPI {
     hasApiCredentials: () => Promise<IpcResult<boolean>>
     getAvatarUrl: () => Promise<IpcResult<string | null>>
     refreshAvatar: () => Promise<IpcResult<string | null>>
+    getPersistedUser: () => IpcResult<{ user: TGUser; avatarUrl: string | null } | null>
   }
   updater: {
     install: () => Promise<IpcResult<void>>

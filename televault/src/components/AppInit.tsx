@@ -7,11 +7,14 @@ import { useAuthStore } from '../store/auth.store'
  * Runs ONCE at app start from the root "/" path.
  * Decides where to send the user — /setup, /login, or /drive.
  * Never re-runs. All other routes are standalone pages with no init logic.
+ *
+ * The actual session restore (user + avatar, atomically) lives in
+ * auth.store's hydrateSession(); AppInit only decides navigation based on its
+ * result and must not re-implement any user/avatar mapping here.
  */
 export function AppInit() {
   const navigate = useNavigate()
-  const setLoggedIn = useAuthStore((s) => s.setLoggedIn)
-  const setAvatarUrl = useAuthStore((s) => s.setAvatarUrl)
+  const hydrateSession = useAuthStore((s) => s.hydrateSession)
 
   useEffect(() => {
     let cancelled = false
@@ -28,27 +31,19 @@ export function AppInit() {
           return
         }
 
-        // Step 2 — is there a valid Telegram session?
-        const sessionResult = await window.televault.auth.getSession()
+        // Step 2 — restore the full session (user + avatar) in one place.
+        const status = await hydrateSession()
         if (cancelled) return
 
-        if (sessionResult.success && sessionResult.data?.isLoggedIn && sessionResult.data.user) {
+        if (status === 'signed_in') {
           console.log('[AppInit] Session valid → /drive')
-          setLoggedIn({
-            id: sessionResult.data.user.id,
-            firstName: sessionResult.data.user.firstName,
-            username: sessionResult.data.user.username || null,
-          })
-          window.televault.system.getAvatarUrl().then(res => {
-            if (res.success) {
-              setAvatarUrl(res.data)
-            }
-          }).catch(console.error)
           navigate('/drive', { replace: true })
-        } else {
+        } else if (status === 'signed_out') {
           console.log('[AppInit] No session → /login')
           navigate('/login', { replace: true })
         }
+        // status === 'aborted' means a newer hydrateSession superseded this
+        // one — never navigate based on a stale result.
       } catch (err) {
         console.error('[AppInit] init error:', err)
         navigate('/login', { replace: true })
@@ -57,7 +52,7 @@ export function AppInit() {
 
     init()
     return () => { cancelled = true }
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [hydrateSession])
 
   // Render a spinner while we decide
   return (
