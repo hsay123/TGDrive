@@ -412,7 +412,71 @@ export function FilePreview({ entry, onClose }: FilePreviewProps) {
     )
   }
 
-  // --- FALLBACK VIEWER FOR OTHER TYPES (Audio, PDF, etc) ---
+  // --- FULL-SCREEN PDF VIEWER ---
+  if (isPdf) {
+    return createPortal(
+      <div
+        className="fixed inset-0 z-50 flex flex-col bg-[#0a0a0f]/95 backdrop-blur-md animate-in fade-in duration-200"
+        onClick={onClose}
+        onContextMenu={handleContextMenu}
+      >
+        {/* Minimal top bar: filename + close */}
+        <div
+          className="flex items-center justify-between gap-4 px-5 py-3 shrink-0 select-none"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="flex min-w-0 items-center gap-2.5">
+            <FileIcon mime={mime} size="sm" />
+            <span className="truncate text-sm font-medium text-gray-200">{entry.name}</span>
+          </div>
+          <button
+            onClick={onClose}
+            aria-label="Close preview"
+            className="p-2 rounded-full bg-white/5 hover:bg-white/10 text-white/70 hover:text-white transition-colors shrink-0"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+
+        {isLoadingPreview && (
+          <div className="flex flex-1 items-center justify-center text-gray-400">
+            <div className="flex flex-col items-center gap-3">
+              <Spinner size="lg" />
+              <span className="text-sm">Loading PDF…</span>
+            </div>
+          </div>
+        )}
+
+        {previewError && (
+          <div className="flex flex-1 items-center justify-center">
+            <div className="flex flex-col items-center gap-3">
+              <FileIcon mime={mime} size="lg" />
+              <p className="text-sm font-medium text-red-400">Couldn't load preview</p>
+              <p className="text-xs text-gray-500 max-w-xs text-center">{previewError}</p>
+            </div>
+          </div>
+        )}
+
+        {previewUrl && !isLoadingPreview && !previewError && (
+          <div
+            className="flex-1 min-h-0 px-3 pb-3"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <iframe
+              src={previewUrl}
+              title={entry.name}
+              className="h-full w-full rounded-xl"
+            />
+          </div>
+        )}
+
+        <ContextMenuDropdown />
+      </div>,
+      document.body
+    )
+  }
+
+  // --- FALLBACK VIEWER FOR OTHER TYPES (Audio, etc) ---
   const renderPreviewBody = () => {
     if (isLoadingPreview) {
       return (
@@ -444,19 +508,6 @@ export function FilePreview({ entry, onClose }: FilePreviewProps) {
           <p className="text-sm font-medium text-gray-200">{entry.name}</p>
           {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
           <audio src={previewUrl} controls className="w-full max-w-sm" />
-        </div>
-      )
-    }
-
-    if (isPdf && previewUrl) {
-      return (
-        <div onContextMenu={handleContextMenu} className="w-full h-full">
-          <iframe
-            src={previewUrl}
-            title={entry.name}
-            className="w-full rounded-xl bg-white/5"
-            style={{ height: '70vh', minHeight: 400 }}
-          />
         </div>
       )
     }
