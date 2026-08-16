@@ -25,6 +25,7 @@ protocol.registerSchemesAsPrivileged([
       secure: true,
       supportFetchAPI: true,
       stream: true,
+      bypassCSP: true,
     },
   },
 ])
@@ -49,6 +50,7 @@ function createWindow(): void {
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: false,
+      plugins: true,
     },
   })
 
@@ -194,6 +196,13 @@ app.whenReady().then(() => {
 
   session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
     const responseHeaders = { ...details.responseHeaders }
+    const contentType = (
+      responseHeaders['Content-Type'] || responseHeaders['content-type'] || ['']
+    ).join('')
+    if (contentType.toLowerCase().includes('application/pdf')) {
+      callback({ responseHeaders })
+      return
+    }
     delete responseHeaders['Content-Security-Policy']
     delete responseHeaders['content-security-policy']
     responseHeaders['Content-Security-Policy'] = [csp]
