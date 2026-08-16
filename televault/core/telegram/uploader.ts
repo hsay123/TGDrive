@@ -170,6 +170,17 @@ export async function uploadFile(
   let tempEncPath: string | null = null
   const activeTempChunks = new Set<string>()
 
+  // Upload-time video thumbnail pre-seed. For new video uploads we copy the
+  // ORIGINAL local file into preview-cache/<fileId>-partial<ext> concurrently
+  // with the chunk upload. The renderer then extracts a thumbnail frame from
+  // that local cache at upload time via the existing extractVideoFrame() /
+  // saveThumbnail pipeline — no Telegram re-download. The seeded filename
+  // matches exactly what the lazy FileCard path (downloadFirstChunkToTemp)
+  // looks for, so lazy thumbnail generation becomes a cache hit for new files.
+  let thumbnailSeed: Promise<void> | null = null
+  let seededThumbPath: string | null = null
+  let seededThumbTmpPath: string | null = null
+
   try {
     if (signal?.aborted) throw new DOMException('Upload cancelled', 'AbortError')
 
@@ -206,6 +217,28 @@ export async function uploadFile(
       tempEncPath = path.join(app.getPath('userData'), `tvenc-${fileId}`)
       await encryptFile(localPath, tempEncPath, key)
       uploadPath = tempEncPath
+    }
+
+    // ── Video thumbnail pre-seed (concurrent, non-blocking) ──────────────
+    // Runs in the background alongside the chunk upload. The chunk upload is
+    // network-bound and far slower than a local disk copy, so the copy is
+    // effectively free; it is awaited only once at the end (Thumbnail section)
+    // to guarantee the cache file exists before the upload returns. Copy to a
+    // temp name then rename so a truncated copy can never land under the
+    // cache filename the lazy path trusts.
+    if (mimeType.startsWith('video/')) {
+      const ext = path.extname(fileName) || '.mp4'
+      const previewCacheDir = path.join(app.getPath('userData'), 'preview-cache')
+      seededThumbPath = path.join(previewCacheDir, `${fileId}-partial${ext}`)
+      seededThumbTmpPath = `${seededThumbPath}.seeding`
+      thumbnailSeed = (async () => {
+        await fs.promises.mkdir(previewCacheDir, { recursive: true })
+        await fs.promises.copyFile(localPath, seededThumbTmpPath!)
+        await fs.promises.rename(seededThumbTmpPath!, seededThumbPath!)
+      })().catch(async (err) => {
+        await fs.promises.unlink(seededThumbTmpPath!).catch(() => {})
+        console.warn('[uploader] video thumbnail seed failed:', err)
+      })
     }
 
     const chunks = getChunks(uploadPath)
@@ -287,6 +320,9 @@ export async function uploadFile(
         if (!existing) {
           try { (await import('../db/files.db')).deleteFile(fileId) } catch { /* best-effort */ }
         }
+        // Remove the pre-seeded thumbnail cache (fileId no longer exists).
+        await fs.promises.unlink(seededThumbPath ?? '').catch(() => {})
+        await fs.promises.unlink(seededThumbTmpPath ?? '').catch(() => {})
         throw new DOMException('Upload cancelled', 'AbortError')
       }
       const batch = chunks.slice(i, i + CONCURRENCY)
@@ -345,6 +381,19 @@ export async function uploadFile(
         fileRecord.thumbnail_path = thumbPath
       } catch (thumbErr) {
         console.warn('[uploader] Thumbnail generation failed:', thumbErr)
+      }
+    } else if (mimeType.startsWith('video/') && thumbnailSeed) {
+      // Frame extraction itself runs in the renderer (extractVideoFrame() +
+      // saveThumbnail) against the pre-seeded local cache, so this only has
+      // to guarantee the copy finished. The copy ran concurrently with the
+      // chunk uploads, so this await is a no-op in practice. On failure the
+      // cache file is already cleaned up by the seed's catch; the file is
+      // left without a thumbnail and the lazy FileCard path remains as the
+      // fallback (and for new files that fallback is itself a cache hit).
+      try {
+        await thumbnailSeed
+      } catch (seedErr) {
+        console.warn('[uploader] video thumbnail seed failed:', seedErr)
       }
     }
 

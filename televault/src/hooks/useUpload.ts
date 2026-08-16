@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react'
 import { useUploadStore } from '../store/upload.store'
 import { useFilesStore } from '../store/files.store'
 import { useTreeStore } from '../store/tree.store'
+import { extractVideoFrame } from '../utils/videoThumbnail'
 import toast from 'react-hot-toast'
 
 function formatBytes(bytes: number): string {
@@ -9,6 +10,31 @@ function formatBytes(bytes: number): string {
   if (bytes < 1024 ** 2) return `${(bytes / 1024).toFixed(1)} KB`
   if (bytes < 1024 ** 3) return `${(bytes / 1024 ** 2).toFixed(1)} MB`
   return `${(bytes / 1024 ** 3).toFixed(2)} GB`
+}
+
+/**
+ * Extracts a thumbnail frame at upload time from the local file the main
+ * process pre-seeded into preview-cache/<fileId>-partial<ext>, then saves it
+ * via the existing saveThumbnail IPC. Pure local I/O — no Telegram download.
+ * Any failure simply leaves the file without a thumbnail; the lazy FileCard
+ * path remains as a fallback (and is itself a cache hit for new files).
+ */
+async function generateUploadThumbnail(uploaded: {
+  id: string
+  name: string
+  mimeType: string | null
+}): Promise<void> {
+  try {
+    const dot = uploaded.name.lastIndexOf('.')
+    if (dot < 0) return
+    const ext = uploaded.name.slice(dot)
+    const videoUrl = `tvfile://preview-cache/${uploaded.id}-partial${ext}`
+    const dataUrl = await extractVideoFrame(videoUrl)
+    if (!dataUrl) return
+    await window.televault.files.saveThumbnail(uploaded.id, dataUrl)
+  } catch (err) {
+    console.warn('[upload] upload-time thumbnail failed:', err)
+  }
 }
 
 export function useUpload() {
@@ -64,6 +90,17 @@ export function useUpload() {
             markDone.current(item.id)
             await refreshFolder.current()
             await loadTree.current()
+            const uploaded = result.data
+            if (uploaded?.mimeType?.startsWith('video/')) {
+              // Upload-time thumbnail: the main process pre-seeded the local
+              // file into preview-cache/<id>-partial<ext> during the upload,
+              // so we extract a frame straight from disk — no Telegram
+              // re-download. Non-blocking: the file is already visible in the
+              // grid; the thumbnail pops in when ready (~1s).
+              void generateUploadThumbnail(uploaded).then(() =>
+                refreshFolder.current()
+              )
+            }
           } else if ((result as any).cancelled) {
             markCancelled.current(item.id)
           } else {
