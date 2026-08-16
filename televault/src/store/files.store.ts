@@ -138,14 +138,14 @@ export const useFilesStore = create<FilesStore>((set, get) => ({
           name: t.name,
           path: t.originalPath,
           size: t.size,
-          mimeType: null,
+          mimeType: t.mimeType,
           folderId: t.folderId ?? '',
           isEncrypted: false,
           isChunked: false,
           chunkCount: 1,
           uploadedAt: t.deletedAt,
           updatedAt: t.deletedAt,
-          thumbnailPath: null,
+          thumbnailPath: t.thumbnailPath,
           starred: 0,
         }))
         set({ entries, isLoading: false })

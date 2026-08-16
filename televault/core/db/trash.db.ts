@@ -11,17 +11,23 @@ export interface TrashRow {
   expiresAt: number
   name: string
   size: number
+  mimeType: string | null
+  thumbnailPath: string | null
 }
 
 function toTrashRow(entry: TrashEntry): TrashRow {
   let name = entry.original_path.split('/').pop() ?? 'Unknown'
   let size = 0
+  let mimeType: string | null = null
+  let thumbnailPath: string | null = null
 
   if (entry.file_data) {
     try {
       const parsed = JSON.parse(entry.file_data) as File
       name = parsed.name
       size = parsed.size
+      mimeType = parsed.mime_type ?? null
+      thumbnailPath = parsed.thumbnail_path ?? null
     } catch {
       // use defaults
     }
@@ -36,6 +42,8 @@ function toTrashRow(entry: TrashEntry): TrashRow {
     expiresAt: entry.expires_at,
     name,
     size,
+    mimeType,
+    thumbnailPath,
   }
 }
 
