@@ -195,6 +195,10 @@ app.whenReady().then(() => {
       "connect-src 'self'"
 
   session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
+    if (details.url.startsWith('chrome-extension://')) {
+      callback({ responseHeaders: details.responseHeaders })
+      return
+    }
     const responseHeaders = { ...details.responseHeaders }
     const contentType = (
       responseHeaders['Content-Type'] || responseHeaders['content-type'] || ['']
