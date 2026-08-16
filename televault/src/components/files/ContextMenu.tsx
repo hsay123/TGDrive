@@ -198,8 +198,11 @@ export function ContextMenu({ x, y, entries, onClose }: ContextMenuProps) {
       icon: <Trash2 className="h-3.5 w-3.5" />,
       action: () =>
         run(async () => {
-          for (const id of targetIds) {
-            const result = await window.televault.files.delete(id, false)
+          for (const target of entries) {
+            const result =
+              target.type === 'folder'
+                ? await window.televault.folders.delete(target.id)
+                : await window.televault.files.delete(target.id, false)
             if (!result.success) throw new Error(result.error)
           }
         }),

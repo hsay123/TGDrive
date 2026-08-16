@@ -1,6 +1,7 @@
 import { getDb } from './db'
 import type { Chunk, File, TrashEntry } from './schema'
 import { createFile, softDeleteFile } from './files.db'
+import { createFolder, getFolderById, getFolderByPath } from './folders.db'
 
 export interface TrashRow {
   id: string
@@ -73,12 +74,22 @@ export function restoreFromTrash(trashId: string): void {
     throw new Error('Cannot restore: no file data in trash entry')
   }
 
-  const fileData = JSON.parse(entry.file_data) as File
+  const fileData = JSON.parse(entry.file_data) as File & { _chunks?: Chunk[] }
+
+  // The original folder row may no longer exist (folder delete removes the
+  // folder rows once every file in the subtree has been trashed). Recreate the
+  // parent folder chain from the snapshot path so the file restores in place.
+  let folderId = fileData.folder_id
+  if (!folderId || !getFolderById(folderId)) {
+    const lastSlash = fileData.path.lastIndexOf('/')
+    const parentPath = lastSlash > 0 ? fileData.path.substring(0, lastSlash) : '/'
+    folderId = ensureFolderPath(parentPath)
+  }
 
   const transaction = db.transaction(() => {
     createFile({
       id: fileData.id,
-      folder_id: fileData.folder_id,
+      folder_id: folderId,
       name: fileData.name,
       path: fileData.path,
       size: fileData.size,
@@ -91,10 +102,60 @@ export function restoreFromTrash(trashId: string): void {
       thumbnail_path: fileData.thumbnail_path,
       starred: 0,
     })
+
+    // Re-attach the chunk records (Telegram message/channel ids) so the restored
+    // file can actually be downloaded again — the original rows were cascade
+    // deleted when the file row was removed by softDeleteFile().
+    if (fileData._chunks && fileData._chunks.length > 0) {
+      const insertChunk = db.prepare(
+        `INSERT INTO chunks (id, file_id, chunk_index, message_id, channel_id, size)
+         VALUES (?, ?, ?, ?, ?, ?)`
+      )
+      for (const chunk of fileData._chunks) {
+        insertChunk.run(
+          chunk.id,
+          fileData.id,
+          chunk.chunk_index,
+          chunk.message_id,
+          chunk.channel_id,
+          chunk.size
+        )
+      }
+    }
+
     db.prepare('DELETE FROM trash WHERE id = ?').run(trashId)
   })
 
   transaction()
+}
+
+/**
+ * Ensure a folder path exists (creating any missing segments), and return the
+ * id of the deepest folder. Used by restoreFromTrash when the folder a file
+ * was trashed from no longer exists.
+ */
+function ensureFolderPath(folderPath: string): string {
+  const segments = folderPath.split('/').filter(Boolean)
+
+  let currentPath = '/'
+  let currentId = getFolderByPath('/')?.id ?? null
+  if (!currentId) {
+    const root = createFolder('Root', null, '/')
+    currentId = root.id
+  }
+
+  for (const segment of segments) {
+    currentPath = currentPath === '/' ? `/${segment}` : `${currentPath}/${segment}`
+    const existing = getFolderByPath(currentPath)
+    if (existing) {
+      currentId = existing.id
+    } else {
+      const created = createFolder(segment, currentId, currentPath)
+      currentId = created.id
+    }
+  }
+
+  return currentId as string
 }
 
 export function deleteTrashEntry(id: string): void {
@@ -105,15 +166,57 @@ export function deleteTrashEntry(id: string): void {
   }
 }
 
+/**
+ * Soft-delete every file in the given folder AND its entire subtree of
+ * descendant folders. Each file (and its chunk records) is snapshotted into
+ * the trash table before its row is removed, so the subsequent cascade delete
+ * of the folder rows can never destroy data that was not first captured.
+ *
+ * Throws if any live file remains under the subtree after trashing — that
+ * would mean the folder delete below would cascade-hard-delete uncaptured
+ * data, which must never be allowed.
+ */
 export function trashFolderContents(folderId: string): void {
   const db = getDb()
-  const files = db
-    .prepare('SELECT id FROM files WHERE folder_id = ?')
-    .all(folderId) as Array<{ id: string }>
 
-  for (const file of files) {
-    softDeleteFile(file.id)
+  // Collect the full subtree of folder ids (target folder + all descendants).
+  const folderIds: string[] = []
+  const queue: string[] = [folderId]
+  while (queue.length > 0) {
+    const current = queue.shift() as string
+    folderIds.push(current)
+    const children = db
+      .prepare('SELECT id FROM folders WHERE parent_id = ?')
+      .all(current) as Array<{ id: string }>
+    for (const child of children) queue.push(child.id)
   }
+
+  const transaction = db.transaction(() => {
+    for (const id of folderIds) {
+      const files = db
+        .prepare('SELECT id FROM files WHERE folder_id = ?')
+        .all(id) as Array<{ id: string }>
+      for (const file of files) {
+        softDeleteFile(file.id)
+      }
+    }
+
+    // Invariant: no live file may remain under the subtree.
+    let remaining = 0
+    for (const id of folderIds) {
+      const row = db
+        .prepare('SELECT COUNT(*) AS n FROM files WHERE folder_id = ?')
+        .get(id) as { n: number }
+      remaining += row.n
+    }
+    if (remaining > 0) {
+      throw new Error(
+        `Aborting folder delete: ${remaining} file(s) could not be captured in trash`
+      )
+    }
+  })
+
+  transaction()
 }
 
 /**

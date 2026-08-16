@@ -120,15 +120,22 @@ export default function Drive() {
       // Delete/Backspace: delete selected
       if ((e.key === 'Delete' || e.key === 'Backspace') && selectedIds.size > 0 && !previewEntryId) {
         const ids = Array.from(selectedIds)
-        if (confirm(`Delete ${ids.length} file(s)? They will be moved to trash.`)) {
-          Promise.all(ids.map((id) => window.televault.files.delete(id, false))).then(() => {
+        if (confirm(`Delete ${ids.length} item(s)? They will be moved to trash.`)) {
+          const entriesById = new Map(entries.map((entry) => [entry.id, entry]))
+          Promise.all(
+            ids.map((id) =>
+              entriesById.get(id)?.type === 'folder'
+                ? window.televault.folders.delete(id)
+                : window.televault.files.delete(id, false)
+            )
+          ).then(() => {
             clearSelection()
             loadFolder(currentPath)
           })
         }
       }
     },
-    [clearSelection, setPreviewEntryId, searchQuery, setSearchQuery, selectedIds, previewEntryId, currentPath, loadFolder]
+    [clearSelection, setPreviewEntryId, searchQuery, setSearchQuery, selectedIds, previewEntryId, currentPath, loadFolder, entries]
   )
 
   // Keyboard shortcut: T = toggle theme from screen center

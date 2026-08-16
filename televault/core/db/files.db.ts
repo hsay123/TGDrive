@@ -1,6 +1,7 @@
 import { v4 as uuidv4 } from 'uuid'
 import { getDb } from './db'
 import type { File } from './schema'
+import { getChunksByFileId } from './chunks.db'
 
 const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000
 
@@ -180,7 +181,13 @@ export function softDeleteFile(id: string): void {
       file.path,
       file.id,
       file.folder_id,
-      JSON.stringify(file),
+      JSON.stringify({
+        ...file,
+        // Preserve the chunk records (Telegram message/channel ids) inside the
+        // trash snapshot. Deleting the file row below cascades to the chunks
+        // rows, so without this the file would be un-downloadable after restore.
+        _chunks: getChunksByFileId(id),
+      }),
       now,
       now + THIRTY_DAYS_MS
     )
