@@ -32,6 +32,7 @@ const sectionHeading: React.CSSProperties = {
 
 export default function Drive() {
   const currentPath = useFilesStore((s) => s.currentPath)
+  const currentView = useFilesStore((s) => s.currentView)
   const isLoading = useFilesStore((s) => s.isLoading)
   const loadFolder = useFilesStore((s) => s.loadFolder)
   const entries = useFilesStore((s) => s.entries)
@@ -93,11 +94,10 @@ export default function Drive() {
   }, [loadTree, loadFolder])
 
   useEffect(() => {
-    if (!searchQuery) {
-      loadFolder(currentPath)
-      expandPath(currentPath)
-    }
-  }, [currentPath, loadFolder, expandPath, searchQuery])
+    if (searchQuery || currentView !== 'drive') return
+    loadFolder(currentPath)
+    expandPath(currentPath)
+  }, [currentPath, currentView, loadFolder, expandPath, searchQuery])
 
   // Keyboard shortcuts
   const handleKeyDown = useCallback(
