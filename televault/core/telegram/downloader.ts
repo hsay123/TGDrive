@@ -250,6 +250,16 @@ export async function downloadFirstChunkToTemp(fileId: string): Promise<string> 
     // Not cached yet — download chunk 0
   }
 
+  // Encrypted files are encrypted BEFORE chunking (uploader.ts encrypts the whole
+  // file, then getChunks() slices the CIPHERTEXT), so chunk 0 alone is a byte-range
+  // slice of a single AES-GCM stream whose auth tag covers the WHOLE file. It is not
+  // a standalone decryptable unit, and raw ciphertext handed to a <video> element can
+  // never produce a frame. Fall back to the full download + decrypt path instead.
+  if (file.is_encrypted === 1) {
+    await downloadFile(fileId, cachedPath)
+    return cachedPath
+  }
+
   const tempPath = cachedPath + '.tmp'
   await downloadFromTelegram({
     messageId: firstChunk.message_id,

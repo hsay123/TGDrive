@@ -51,7 +51,6 @@ export function extractVideoFrame(
     video.muted = true
     video.playsInline = true
     video.preload = 'metadata'
-    video.crossOrigin = 'anonymous'
 
     const timeout = setTimeout(() => {
       console.warn('[thumb] timeout waiting for video')
@@ -88,10 +87,22 @@ export function extractVideoFrame(
       canvas.height = h
       const ctx = canvas.getContext('2d')
 
-      if (!ctx) { resolve(null); return }
+      if (!ctx) { clearTimeout(timeout); resolve(null); return }
 
       ctx.drawImage(video, 0, 0, w, h)
-      const dataUrl = canvas.toDataURL('image/jpeg', 0.82)
+
+      // toDataURL can throw SecurityError if the canvas is tainted. Treat that
+      // as a decode failure so the caller transitions to 'failed' — never hang.
+      let dataUrl: string
+      try {
+        dataUrl = canvas.toDataURL('image/jpeg', 0.82)
+      } catch (err) {
+        clearTimeout(timeout)
+        console.error('[thumb] decode-failed: canvas.toDataURL threw:', err)
+        video.src = ''
+        resolve(null)
+        return
+      }
       video.src = ''
       resolve(dataUrl)
     })

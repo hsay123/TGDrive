@@ -52,6 +52,29 @@ function mapVersion(v: Version): VersionRow {
 // Track in-flight uploads so they can be cancelled
 const activeUploads = new Map<string, AbortController>()
 
+// Hard cap on a thumbnail-chunk download. client.downloadMedia() can stall
+// (dropped MTProto connection, entity-resolution hang, long FloodWaitError)
+// and NEVER settle — withRetry/withEntityRetry only handle *rejections*.
+// This guarantees the ipcMain.handle promise always settles one way or another.
+const THUMB_DOWNLOAD_TIMEOUT_MS = 15000
+
+function withTimeout<T>(
+  promise: Promise<T>,
+  ms: number,
+  label: string
+): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(
+      () => reject(new Error(`[${label}] timed out after ${ms}ms`)),
+      ms
+    )
+  })
+  return Promise.race([promise, timeout]).finally(() => {
+    if (timer) clearTimeout(timer)
+  })
+}
+
 export function registerFilesIpc(
   ipcMain: IpcMain,
   getMainWindow: () => BrowserWindow | null,
@@ -325,10 +348,16 @@ export function registerFilesIpc(
   )
 
   // Preview: download ONLY the first chunk — fast path for thumbnail generation
+  // Wrapped in a hard timeout: a stalled Telegram download must resolve to an
+  // IpcResult failure ({ success:false, error:'...timeout...' }), never hang.
   ipcMain.handle('files:downloadFirstChunkToTemp', async (_event, fileId: string) =>
     ipcResult(async () => {
       const { downloadFirstChunkToTemp } = await import('../../core/telegram/downloader')
-      return downloadFirstChunkToTemp(fileId)
+      return withTimeout(
+        downloadFirstChunkToTemp(fileId),
+        THUMB_DOWNLOAD_TIMEOUT_MS,
+        'downloadFirstChunkToTemp'
+      )
     })
   )
 

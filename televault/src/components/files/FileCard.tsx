@@ -22,6 +22,30 @@ let thumbGenActive = 0
 const THUMB_CONCURRENCY = 1
 const thumbQueue: Array<() => void> = []
 
+// ── Safety net: bound the download stage so the spinner can never hang ──────
+// The main process also enforces this bound (files:downloadFirstChunkToTemp),
+// but even if that fix were imperfect, this guarantees generateThumb() always
+// transitions out of 'loading' within a bounded time.
+const THUMB_DOWNLOAD_TIMEOUT_MS = 15000
+
+function withTimeout<T>(
+  promise: Promise<T>,
+  ms: number,
+  stage: string
+): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(
+      () => reject(new Error(`thumb-${stage}-timeout (${ms}ms)`)),
+      ms
+    )
+  })
+  return Promise.race([promise, timeout]).finally(() => {
+    if (timer) clearTimeout(timer)
+  })
+}
+// ────────────────────────────────────────────────────────────────────────────
+
 function acquireThumbSlot(): Promise<void> {
   if (thumbGenActive < THUMB_CONCURRENCY) {
     thumbGenActive++
@@ -82,20 +106,39 @@ export function FileCard({
         return
       }
 
-      // ── Fast path: download ONLY the first chunk ─────────────────────────
-      const partialResult = await window.televault.files.downloadFirstChunkToTemp(entry.id)
+      // ── Fast path: download ONLY the first chunk (bounded by UI timeout) ──
+      const partialResult = await withTimeout(
+        window.televault.files.downloadFirstChunkToTemp(entry.id),
+        THUMB_DOWNLOAD_TIMEOUT_MS,
+        'download'
+      )
       if (!partialResult.success || !partialResult.data) {
+        const errorMsg = partialResult.error ?? 'unknown error'
+        const stage = /timeout/i.test(errorMsg)
+          ? 'download-timeout'
+          : /decrypt/i.test(errorMsg)
+            ? 'decrypt-failed'
+            : 'download-failed'
+        console.error(`[FileCard] thumb ${stage}: ${errorMsg}`)
         setThumbState('failed')
         return
       }
 
       const filename = partialResult.data.split(/[/\\]/).pop()
-      if (!filename) { setThumbState('failed'); return }
+      if (!filename) {
+        console.error('[FileCard] thumb download-failed: no filename from cached path')
+        setThumbState('failed')
+        return
+      }
 
       const videoUrl = `tvfile://preview-cache/${filename}`
       const dataUrl = await extractVideoFrame(videoUrl, 1.5)
 
-      if (!dataUrl) { setThumbState('failed'); return }
+      if (!dataUrl) {
+        console.error('[FileCard] thumb decode-failed: frame extraction returned null')
+        setThumbState('failed')
+        return
+      }
 
       setVideoThumb(dataUrl)
       setThumbState('done')
@@ -105,7 +148,9 @@ export function FileCard({
         .catch((e) => console.error('[FileCard] saveThumbnail:', e))
 
     } catch (err) {
-      console.error('[FileCard] thumb generation failed:', err)
+      const message = err instanceof Error ? err.message : String(err)
+      const stage = /timeout/i.test(message) ? 'download-timeout' : 'download-failed'
+      console.error(`[FileCard] thumb ${stage}:`, err)
       setThumbState('failed')
     } finally {
       if (!released) releaseThumbSlot()
