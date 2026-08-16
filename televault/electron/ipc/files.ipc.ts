@@ -57,6 +57,18 @@ const activeUploads = new Map<string, AbortController>()
 // and NEVER settle — withRetry/withEntityRetry only handle *rejections*.
 // This guarantees the ipcMain.handle promise always settles one way or another.
 const THUMB_DOWNLOAD_TIMEOUT_MS = 15000
+const THUMB_DOWNLOAD_TIMEOUT_CAP_MS = 60000
+
+// Single-chunk files download in their ENTIRETY for the thumbnail (the chunk
+// IS the whole file), so a fixed 15s budget fails on slow connections for large
+// files. Scale the budget by file size (~6s/MiB), floored at 15s, capped at 60s.
+function thumbDownloadTimeoutFor(sizeBytes: number): number {
+  const sizeMB = sizeBytes / (1024 * 1024)
+  return Math.min(
+    THUMB_DOWNLOAD_TIMEOUT_CAP_MS,
+    Math.max(THUMB_DOWNLOAD_TIMEOUT_MS, Math.ceil(sizeMB) * 6000)
+  )
+}
 
 function withTimeout<T>(
   promise: Promise<T>,
@@ -353,9 +365,11 @@ export function registerFilesIpc(
   ipcMain.handle('files:downloadFirstChunkToTemp', async (_event, fileId: string) =>
     ipcResult(async () => {
       const { downloadFirstChunkToTemp } = await import('../../core/telegram/downloader')
+      const file = getFileById(fileId)
+      const budget = file ? thumbDownloadTimeoutFor(file.size) : THUMB_DOWNLOAD_TIMEOUT_MS
       return withTimeout(
         downloadFirstChunkToTemp(fileId),
-        THUMB_DOWNLOAD_TIMEOUT_MS,
+        budget,
         'downloadFirstChunkToTemp'
       )
     })

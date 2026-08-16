@@ -27,6 +27,18 @@ const thumbQueue: Array<() => void> = []
 // but even if that fix were imperfect, this guarantees generateThumb() always
 // transitions out of 'loading' within a bounded time.
 const THUMB_DOWNLOAD_TIMEOUT_MS = 15000
+const THUMB_DOWNLOAD_TIMEOUT_CAP_MS = 60000
+
+// Single-chunk files download in their ENTIRETY for the thumbnail (the chunk
+// IS the whole file), so a fixed 15s budget fails on slow connections for large
+// files. Scale the budget by file size (~6s/MiB), floored at 15s, capped at 60s.
+function thumbDownloadTimeoutFor(sizeBytes: number): number {
+  const sizeMB = sizeBytes / (1024 * 1024)
+  return Math.min(
+    THUMB_DOWNLOAD_TIMEOUT_CAP_MS,
+    Math.max(THUMB_DOWNLOAD_TIMEOUT_MS, Math.ceil(sizeMB) * 6000)
+  )
+}
 
 function withTimeout<T>(
   promise: Promise<T>,
@@ -109,7 +121,7 @@ export function FileCard({
       // ── Fast path: download ONLY the first chunk (bounded by UI timeout) ──
       const partialResult = await withTimeout(
         window.televault.files.downloadFirstChunkToTemp(entry.id),
-        THUMB_DOWNLOAD_TIMEOUT_MS,
+        thumbDownloadTimeoutFor(entry.size),
         'download'
       )
       if (!partialResult.success || !partialResult.data) {
@@ -184,12 +196,16 @@ export function FileCard({
       if (ev.detail.fileId === entry.id) {
         setVideoThumb(null)
         visibleRef.current = false
+        thumbStateRef.current = 'idle'
         setThumbState('idle')
+        // The IntersectionObserver won't re-fire for an already-visible card,
+        // so invoke the generation pipeline directly to actually retry.
+        generateThumb()
       }
     }
     window.addEventListener('televault:regenerate-thumb', onRegenerate)
     return () => window.removeEventListener('televault:regenerate-thumb', onRegenerate)
-  }, [entry.id])
+  }, [entry.id, generateThumb])
 
   const isStarred = entry.type === 'file' && (entry as any).starred === 1
 
