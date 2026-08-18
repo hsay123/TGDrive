@@ -389,7 +389,7 @@ export function registerFilesIpc(
       const sharp = (await import('sharp')).default
       const allFiles = getAllFiles()
       const imagesWithoutThumbs = allFiles.filter(
-        (f) => f.mime_type?.startsWith('image/') && !f.thumbnail_path
+        (f) => f.is_hidden === 0 && f.mime_type?.startsWith('image/') && !f.thumbnail_path
       )
 
       const thumbDir = path.join(app.getPath('userData'), 'thumbnails')

@@ -58,8 +58,13 @@ export function getAllFiles(): File[] {
   return db.prepare('SELECT * FROM files').all() as File[]
 }
 
-export function getFilesByFolder(folderId: string): File[] {
+export function getFilesByFolder(folderId: string, includeHidden = false): File[] {
   const db = getDb()
+  if (includeHidden) {
+    return db
+      .prepare('SELECT * FROM files WHERE folder_id = ? ORDER BY name ASC')
+      .all(folderId) as File[]
+  }
   return db
     .prepare('SELECT * FROM files WHERE folder_id = ? AND is_hidden = 0 ORDER BY name ASC')
     .all(folderId) as File[]
@@ -133,9 +138,18 @@ export function moveFile(
   })
 }
 
-export function searchFiles(query: string): File[] {
+export function searchFiles(query: string, includeHidden = false): File[] {
   const db = getDb()
   const pattern = `%${query}%`
+  if (includeHidden) {
+    return db
+      .prepare(
+        `SELECT * FROM files
+         WHERE name LIKE ? COLLATE NOCASE OR path LIKE ? COLLATE NOCASE
+         ORDER BY uploaded_at DESC`
+      )
+      .all(pattern, pattern) as File[]
+  }
   return db
     .prepare(
       `SELECT * FROM files
@@ -146,8 +160,13 @@ export function searchFiles(query: string): File[] {
     .all(pattern, pattern) as File[]
 }
 
-export function getRecentFiles(limit = 20): File[] {
+export function getRecentFiles(limit = 20, includeHidden = false): File[] {
   const db = getDb()
+  if (includeHidden) {
+    return db
+      .prepare('SELECT * FROM files ORDER BY uploaded_at DESC LIMIT ?')
+      .all(limit) as File[]
+  }
   return db
     .prepare('SELECT * FROM files WHERE is_hidden = 0 ORDER BY uploaded_at DESC LIMIT ?')
     .all(limit) as File[]
@@ -209,8 +228,14 @@ export function toggleStar(id: string): boolean {
   return newStarred === 1
 }
 
-export function getStarredFiles(): File[] {
-  return getDb()
+export function getStarredFiles(includeHidden = false): File[] {
+  const db = getDb()
+  if (includeHidden) {
+    return db
+      .prepare('SELECT * FROM files WHERE starred = 1 ORDER BY updated_at DESC')
+      .all() as File[]
+  }
+  return db
     .prepare('SELECT * FROM files WHERE starred = 1 AND is_hidden = 0 ORDER BY updated_at DESC')
     .all() as File[]
 }

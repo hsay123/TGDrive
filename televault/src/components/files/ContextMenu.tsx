@@ -10,6 +10,7 @@ import {
   Trash2,
   Trash,
   Star,
+  EyeOff,
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import type { VFSEntry } from '../../types'
@@ -128,6 +129,26 @@ export function ContextMenu({ x, y, entries, onClose }: ContextMenuProps) {
         openMoveToModal(targetIds, entry.type)
         onClose()
       },
+    })
+
+    const isHidden = (entry as any).isHidden === 1
+    items.push({
+      label: isHidden ? bulkLabel('Unhide') : bulkLabel('Hide'),
+      icon: <EyeOff className="h-3.5 w-3.5" />,
+      action: () =>
+        run(async () => {
+          for (const e of entries) {
+            if (e.type === 'file') {
+              const result = await window.televault.files.toggleHidden(e.id)
+              if (!result.success) throw new Error(result.error)
+            } else {
+              const result = await window.televault.folders.toggleHidden(e.id)
+              if (!result.success) throw new Error(result.error)
+            }
+          }
+          toast.success(isHidden ? 'Unhidden' : 'Hidden')
+        }),
+      dividerBefore: true,
     })
   }
 

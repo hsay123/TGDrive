@@ -364,6 +364,7 @@ export async function uploadFile(
         updated_at: now,
         thumbnail_path: null,
         starred: 0,
+        is_hidden: 0,
       })
     }
 

@@ -14,6 +14,7 @@ import { registerLicenseIpc } from './ipc/license.ipc'
 import { initUpdater, installUpdate } from './updater'
 import { ipcResult } from './ipc/helpers'
 import { registerSystemAvatarIpc } from './ipc/system.ipc'
+import { registerRevealIpc } from './ipc/reveal.ipc'
 
 config()
 
@@ -140,6 +141,7 @@ function registerAllIpc(): void {
   registerLicenseIpc(ipcMain)
   registerSystemIpc()
   registerSystemAvatarIpc()
+  registerRevealIpc(ipcMain)
 }
 
 function isPathInsideDir(baseDir: string, targetPath: string): boolean {

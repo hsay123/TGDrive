@@ -21,6 +21,7 @@ export function createFolder(
     path: folderPath,
     created_at: now,
     updated_at: now,
+    is_hidden: 0,
   }
 
   db.prepare(
@@ -53,8 +54,18 @@ export function getFolderById(id: string): Folder | undefined {
     | undefined
 }
 
-export function getChildFolders(parentId: string | null): Folder[] {
+export function getChildFolders(parentId: string | null, includeHidden = false): Folder[] {
   const db = getDb()
+  if (includeHidden) {
+    if (parentId === null) {
+      return db
+        .prepare('SELECT * FROM folders WHERE parent_id IS NULL ORDER BY name ASC')
+        .all() as Folder[]
+    }
+    return db
+      .prepare('SELECT * FROM folders WHERE parent_id = ? ORDER BY name ASC')
+      .all(parentId) as Folder[]
+  }
   if (parentId === null) {
     return db
       .prepare('SELECT * FROM folders WHERE parent_id IS NULL AND is_hidden = 0 ORDER BY name ASC')
@@ -65,8 +76,13 @@ export function getChildFolders(parentId: string | null): Folder[] {
     .all(parentId) as Folder[]
 }
 
-export function getAllFolders(): Folder[] {
+export function getAllFolders(includeHidden = false): Folder[] {
   const db = getDb()
+  if (includeHidden) {
+    return db
+      .prepare('SELECT * FROM folders ORDER BY path ASC')
+      .all() as Folder[]
+  }
   return db
     .prepare('SELECT * FROM folders WHERE is_hidden = 0 ORDER BY path ASC')
     .all() as Folder[]
@@ -109,13 +125,13 @@ export function deleteFolder(id: string): void {
   }
 }
 
-export function getFolderTree(): FolderTreeNode[] {
+export function getFolderTree(includeHidden = false): FolderTreeNode[] {
   const db = getDb()
-  const folders = getAllFolders()
+  const folders = getAllFolders(includeHidden)
 
-  const countRows = db
-    .prepare('SELECT folder_id, COUNT(*) AS count FROM files WHERE is_hidden = 0 GROUP BY folder_id')
-    .all() as Array<{ folder_id: string; count: number }>
+  const countRows = includeHidden
+    ? db.prepare('SELECT folder_id, COUNT(*) AS count FROM files GROUP BY folder_id').all() as Array<{ folder_id: string; count: number }>
+    : db.prepare('SELECT folder_id, COUNT(*) AS count FROM files WHERE is_hidden = 0 GROUP BY folder_id').all() as Array<{ folder_id: string; count: number }>
 
   const fileCountByFolder = new Map<string, number>()
   for (const row of countRows) {

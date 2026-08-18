@@ -44,8 +44,8 @@ export async function pullIndex(): Promise<void> {
       db.prepare('DELETE FROM folders').run()
 
       const insertFolder = db.prepare(
-        `INSERT INTO folders (id, parent_id, name, path, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?)`
+        `INSERT INTO folders (id, parent_id, name, path, created_at, updated_at, is_hidden)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`
       )
       for (const folder of snapshot.folders) {
         insertFolder.run(
@@ -54,7 +54,8 @@ export async function pullIndex(): Promise<void> {
           folder.name,
           folder.path,
           folder.created_at,
-          folder.updated_at
+          folder.updated_at,
+          folder.is_hidden ?? 0
         )
       }
 
@@ -62,8 +63,8 @@ export async function pullIndex(): Promise<void> {
         `INSERT INTO files (
           id, folder_id, name, path, size, mime_type,
           is_encrypted, is_chunked, chunk_count,
-          uploaded_at, updated_at, thumbnail_path
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+          uploaded_at, updated_at, thumbnail_path, is_hidden
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       )
       for (const file of snapshot.files) {
         insertFile.run(
@@ -78,7 +79,8 @@ export async function pullIndex(): Promise<void> {
           file.chunk_count,
           file.uploaded_at,
           file.updated_at,
-          file.thumbnail_path
+          file.thumbnail_path,
+          file.is_hidden ?? 0
         )
       }
 

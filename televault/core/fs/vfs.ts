@@ -25,6 +25,7 @@ import {
 import { restoreFromTrash, trashFolderContents, permanentlyDeleteTrashEntry } from '../db/trash.db'
 import { getSetting, setSetting } from '../db/settings.db'
 import { toggleFolderHidden as dbToggleFolderHidden } from '../db/folders.db'
+import { isRevealGateUnlocked } from '../reveal-gate'
 import { uploadFile as telegramUpload } from '../telegram/uploader'
 import { downloadFile as telegramDownload } from '../telegram/downloader'
 import {
@@ -132,8 +133,9 @@ export async function listFolder(folderPath: string): Promise<VFSEntry[]> {
     throw new Error(`Folder not found: ${normalized}`)
   }
 
-  const subfolders = getChildFolders(folder.id).map(mapFolder)
-  const files = getFilesByFolder(folder.id).map(mapFile)
+  const includeHidden = isRevealGateUnlocked()
+  const subfolders = getChildFolders(folder.id, includeHidden).map(mapFolder)
+  const files = getFilesByFolder(folder.id, includeHidden).map(mapFile)
   return [...subfolders, ...files]
 }
 
@@ -256,15 +258,15 @@ export async function restoreFile(trashId: string): Promise<void> {
 }
 
 export async function searchFiles(query: string): Promise<VFSFile[]> {
-  return dbSearchFiles(query).map(mapFile)
+  return dbSearchFiles(query, isRevealGateUnlocked()).map(mapFile)
 }
 
 export async function getRecentFiles(limit = 50): Promise<VFSFile[]> {
-  return dbGetRecentFiles(limit).map(mapFile)
+  return dbGetRecentFiles(limit, isRevealGateUnlocked()).map(mapFile)
 }
 
 export async function getStarredFiles(): Promise<VFSFile[]> {
-  return dbGetStarredFiles().map(mapFile)
+  return dbGetStarredFiles(isRevealGateUnlocked()).map(mapFile)
 }
 
 export async function toggleStar(fileId: string): Promise<boolean> {
@@ -273,7 +275,7 @@ export async function toggleStar(fileId: string): Promise<boolean> {
 
 export async function getTree(): Promise<VFSFolder> {
   ensureRootFolder()
-  const roots = getFolderTree()
+  const roots = getFolderTree(isRevealGateUnlocked())
 
   if (roots.length === 0) {
     const root = getFolderByPath('/')

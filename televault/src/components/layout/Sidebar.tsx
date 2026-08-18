@@ -1,11 +1,14 @@
 import { Link, useLocation } from 'react-router-dom'
-import { Settings, HardDrive, Clock, Star, Trash2 } from 'lucide-react'
+import { Settings, HardDrive, Clock, Star, Trash2, EyeOff } from 'lucide-react'
 import { FolderTree } from '../folders/FolderTree'
 import blackLogo from '../../assets/blacklogo.png'
 import whiteLogo from '../../assets/whittelogo.png'
 import { UserAvatar } from '../shared/UserAvatar'
 import { useAuthStore } from '../../store/auth.store'
 import { useFilesStore } from '../../store/files.store'
+import { useTreeStore } from '../../store/tree.store'
+import { useRevealStore } from '../../store/reveal.store'
+import { PinModal } from '../shared/PinModal'
 import { useState, useEffect } from 'react'
 import clsx from 'clsx'
 import { STORAGE_LIMIT_BYTES, STORAGE_LIMIT_LABEL } from '../../utils/constants'
@@ -28,9 +31,14 @@ export function Sidebar() {
   const loadRecent = useFilesStore((s) => s.loadRecent)
   const loadStarred = useFilesStore((s) => s.loadStarred)
   const entries = useFilesStore((s) => s.entries)
+  const isUnlocked = useRevealStore((s) => s.isUnlocked)
+  const hasPin = useRevealStore((s) => s.hasPin)
+  const setUnlocked = useRevealStore((s) => s.setUnlocked)
+  const setHasPin = useRevealStore((s) => s.setHasPin)
 
   const [storageUsed, setStorageUsed] = useState(0)
   const [sidebarTab, setSidebarTab] = useState<'folders' | 'tags'>('folders')
+  const [pinModal, setPinModal] = useState<'set' | 'verify' | null>(null)
 
   useEffect(() => {
     async function loadStorage() {
@@ -45,6 +53,47 @@ export function Sidebar() {
     }
     loadStorage()
   }, [entries])
+
+  useEffect(() => {
+    async function checkRevealState() {
+      try {
+        const [hasPinResult, isUnlockedResult] = await Promise.all([
+          window.televault.reveal.hasPin(),
+          window.televault.reveal.isUnlocked(),
+        ])
+        if (hasPinResult.success) setHasPin(hasPinResult.data ?? false)
+        if (isUnlockedResult.success) setUnlocked(isUnlockedResult.data ?? false)
+      } catch {
+        // non-fatal
+      }
+    }
+    checkRevealState()
+  }, [setHasPin, setUnlocked])
+
+  const handleToggleReveal = async () => {
+    if (isUnlocked) {
+      await window.televault.reveal.lock()
+      setUnlocked(false)
+      const refresh = useFilesStore.getState().refreshFolder
+      refresh()
+      useTreeStore.getState().loadTree()
+      return
+    }
+    if (!hasPin) {
+      setPinModal('set')
+    } else {
+      setPinModal('verify')
+    }
+  }
+
+  const handlePinSuccess = async () => {
+    setPinModal(null)
+    setUnlocked(true)
+    setHasPin(true)
+    const refresh = useFilesStore.getState().refreshFolder
+    refresh()
+    useTreeStore.getState().loadTree()
+  }
 
   const navItems = [
     {
@@ -130,6 +179,24 @@ export function Sidebar() {
 
       <div className="my-2 mx-4" style={{ borderTop: '1px solid var(--border)' }} />
 
+      {/* Show Hidden Items toggle */}
+      <div className="px-3 mb-2">
+        <button
+          onClick={handleToggleReveal}
+          className={clsx(
+            'flex w-full items-center gap-3 rounded-xl px-3 py-2 text-sm transition-all duration-200',
+            isUnlocked
+              ? 'bg-amber-500/10 text-amber-400 font-medium'
+              : 'text-neutral-500 hover:text-neutral-900 hover:bg-black/5 dark:text-neutral-400 dark:hover:text-neutral-100 dark:hover:bg-white/[0.02]'
+          )}
+        >
+          <EyeOff className="h-4 w-4 flex-shrink-0" />
+          {isUnlocked ? 'Hide Hidden Items' : 'Show Hidden Items'}
+        </button>
+      </div>
+
+      <div className="my-2 mx-4" style={{ borderTop: '1px solid var(--border)' }} />
+
       {/* Folders / Tags pill toggle */}
       <div className="mx-3 mt-3 mb-2 grid grid-cols-2 p-[3px] rounded-[10px] bg-black/5 dark:bg-white/[0.06]">
         {(['folders', 'tags'] as const).map(tab => (
@@ -207,6 +274,13 @@ export function Sidebar() {
           </Link>
         </div>
       </div>
+
+      <PinModal
+        isOpen={pinModal !== null}
+        onClose={() => setPinModal(null)}
+        onSuccess={handlePinSuccess}
+        mode={pinModal === 'set' ? 'set' : 'verify'}
+      />
     </aside>
   )
 }

@@ -42,6 +42,7 @@ const televault: TeleVaultAPI = {
     backfillThumbnails: () => ipcRenderer.invoke('files:backfillThumbnails'),
     storageUsed: () => ipcRenderer.invoke('files:storageUsed'),
     cancelUpload: (uploadId) => ipcRenderer.invoke('files:cancelUpload', uploadId),
+    toggleHidden: (fileId) => ipcRenderer.invoke('files:toggleHidden', fileId),
     onUploadProgress: (callback) => {
       const handler = (
         _event: Electron.IpcRendererEvent,
@@ -83,6 +84,7 @@ const televault: TeleVaultAPI = {
     move: (folderId, newParentPath) =>
       ipcRenderer.invoke('folders:move', folderId, newParentPath),
     getTree: () => ipcRenderer.invoke('folders:tree'),
+    toggleHidden: (folderId) => ipcRenderer.invoke('folders:toggleHidden', folderId),
   },
   sync: {
     push: () => ipcRenderer.invoke('sync:push'),
@@ -129,6 +131,14 @@ const televault: TeleVaultAPI = {
       ipcRenderer.on('updater:ready', handler)
       return () => ipcRenderer.removeListener('updater:ready', handler)
     },
+  },
+  reveal: {
+    hasPin: () => ipcRenderer.invoke('reveal:hasPin'),
+    setPin: (pin) => ipcRenderer.invoke('reveal:setPin', pin),
+    verify: (pin) => ipcRenderer.invoke('reveal:verify', pin),
+    deletePin: () => ipcRenderer.invoke('reveal:deletePin'),
+    isUnlocked: () => ipcRenderer.invoke('reveal:isUnlocked'),
+    lock: () => ipcRenderer.invoke('reveal:lock'),
   },
 }
 

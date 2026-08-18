@@ -101,6 +101,7 @@ export function restoreFromTrash(trashId: string): void {
       updated_at: Date.now(),
       thumbnail_path: fileData.thumbnail_path,
       starred: 0,
+      is_hidden: fileData.is_hidden ?? 0,
     })
 
     // Re-attach the chunk records (Telegram message/channel ids) so the restored

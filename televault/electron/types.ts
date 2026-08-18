@@ -58,6 +58,7 @@ export interface TeleVaultAPI {
     backfillThumbnails: () => Promise<IpcResult<{ processed: number; total: number }>>
     storageUsed: () => Promise<IpcResult<{ bytes: number }>>
     cancelUpload: (uploadId: string) => Promise<IpcResult<{ cancelled: boolean }>>
+    toggleHidden: (fileId: string) => Promise<IpcResult<{ hidden: boolean }>>
     onUploadProgress: (
       callback: (data: { localPath: string; percent: number }) => void
     ) => () => void
@@ -80,6 +81,7 @@ export interface TeleVaultAPI {
     rename: (folderId: string, newName: string) => Promise<IpcResult<void>>
     move: (folderId: string, newParentPath: string) => Promise<IpcResult<void>>
     getTree: () => Promise<IpcResult<VFSFolder>>
+    toggleHidden: (folderId: string) => Promise<IpcResult<{ hidden: boolean }>>
   }
   sync: {
     push: () => Promise<IpcResult<{ messageId: number }>>
@@ -111,5 +113,13 @@ export interface TeleVaultAPI {
     onAvailable: (callback: () => void) => () => void
     onProgress: (callback: (percent: number) => void) => () => void
     onReady: (callback: () => void) => () => void
+  }
+  reveal: {
+    hasPin: () => Promise<IpcResult<boolean>>
+    setPin: (pin: string) => Promise<IpcResult<void>>
+    verify: (pin: string) => Promise<IpcResult<{ ok: boolean }>>
+    deletePin: () => Promise<IpcResult<void>>
+    isUnlocked: () => Promise<IpcResult<boolean>>
+    lock: () => Promise<IpcResult<void>>
   }
 }

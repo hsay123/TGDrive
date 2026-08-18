@@ -30,4 +30,11 @@ export function registerFoldersIpc(ipcMain: IpcMain): void {
   ipcMain.handle('folders:tree', async () =>
     ipcResult(() => vfs.getTree())
   )
+
+  ipcMain.handle('folders:toggleHidden', async (_event, folderId: string) =>
+    ipcResult(async () => {
+      const hidden = await vfs.toggleFolderHidden(folderId)
+      return { hidden }
+    })
+  )
 }
