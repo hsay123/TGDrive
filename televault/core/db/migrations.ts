@@ -141,4 +141,17 @@ export function runMigrations(db: Database.Database): void {
     apply()
     console.log('[migration 5] Ensured version_num column and versions/version_chunks tables')
   }
+
+  // Migration 6: add is_hidden column to files and folders tables
+  if (!applied.has(6)) {
+    const apply = db.transaction(() => {
+      ensureColumn(db, 'files', 'is_hidden', 'INTEGER NOT NULL DEFAULT 0')
+      ensureColumn(db, 'folders', 'is_hidden', 'INTEGER NOT NULL DEFAULT 0')
+      db.prepare(
+        'INSERT INTO schema_migrations (version, applied_at) VALUES (?, ?)'
+      ).run(6, Date.now())
+    })
+    apply()
+    console.log('[migration 6] Ensured is_hidden column exists on files and folders tables')
+  }
 }

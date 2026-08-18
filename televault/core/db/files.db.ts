@@ -17,8 +17,8 @@ export function createFile(data: Omit<File, 'id'> & { id?: string }): File {
     `INSERT INTO files (
       id, folder_id, name, path, size, mime_type,
       is_encrypted, is_chunked, chunk_count,
-      uploaded_at, updated_at, thumbnail_path, starred
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      uploaded_at, updated_at, thumbnail_path, starred, is_hidden
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
   ).run(
     file.id,
     file.folder_id,
@@ -32,7 +32,8 @@ export function createFile(data: Omit<File, 'id'> & { id?: string }): File {
     file.uploaded_at,
     file.updated_at,
     file.thumbnail_path,
-    file.starred ?? 0
+    file.starred ?? 0,
+    file.is_hidden ?? 0
   )
 
   return file
@@ -60,7 +61,7 @@ export function getAllFiles(): File[] {
 export function getFilesByFolder(folderId: string): File[] {
   const db = getDb()
   return db
-    .prepare('SELECT * FROM files WHERE folder_id = ? ORDER BY name ASC')
+    .prepare('SELECT * FROM files WHERE folder_id = ? AND is_hidden = 0 ORDER BY name ASC')
     .all(folderId) as File[]
 }
 
@@ -82,7 +83,7 @@ export function updateFile(id: string, updates: Partial<File>): void {
     `UPDATE files SET
       folder_id = ?, name = ?, path = ?, size = ?, mime_type = ?,
       is_encrypted = ?, is_chunked = ?, chunk_count = ?,
-      uploaded_at = ?, updated_at = ?, thumbnail_path = ?
+      uploaded_at = ?, updated_at = ?, thumbnail_path = ?, is_hidden = ?
      WHERE id = ?`
   ).run(
     updated.folder_id,
@@ -96,6 +97,7 @@ export function updateFile(id: string, updates: Partial<File>): void {
     updated.uploaded_at,
     updated.updated_at,
     updated.thumbnail_path,
+    updated.is_hidden ?? 0,
     id
   )
 }
@@ -137,7 +139,8 @@ export function searchFiles(query: string): File[] {
   return db
     .prepare(
       `SELECT * FROM files
-       WHERE name LIKE ? COLLATE NOCASE OR path LIKE ? COLLATE NOCASE
+       WHERE (name LIKE ? COLLATE NOCASE OR path LIKE ? COLLATE NOCASE)
+       AND is_hidden = 0
        ORDER BY uploaded_at DESC`
     )
     .all(pattern, pattern) as File[]
@@ -146,7 +149,7 @@ export function searchFiles(query: string): File[] {
 export function getRecentFiles(limit = 20): File[] {
   const db = getDb()
   return db
-    .prepare('SELECT * FROM files ORDER BY uploaded_at DESC LIMIT ?')
+    .prepare('SELECT * FROM files WHERE is_hidden = 0 ORDER BY uploaded_at DESC LIMIT ?')
     .all(limit) as File[]
 }
 
@@ -208,12 +211,12 @@ export function toggleStar(id: string): boolean {
 
 export function getStarredFiles(): File[] {
   return getDb()
-    .prepare('SELECT * FROM files WHERE starred = 1 ORDER BY updated_at DESC')
+    .prepare('SELECT * FROM files WHERE starred = 1 AND is_hidden = 0 ORDER BY updated_at DESC')
     .all() as File[]
 }
 
 /**
- * Rename a file. Checks for name collision within the same folder path.
+ * Rename a file. Checks for name collision within the same folder.
  */
 export function renameFile(id: string, newName: string): void {
   const db = getDb()
@@ -233,4 +236,13 @@ export function renameFile(id: string, newName: string): void {
   db.prepare(
     'UPDATE files SET name = ?, path = ?, updated_at = ? WHERE id = ?'
   ).run(newName, newPath, Date.now(), id)
+}
+
+export function toggleHidden(id: string): boolean {
+  const db = getDb()
+  const file = getFileById(id)
+  if (!file) throw new Error(`File not found: ${id}`)
+  const newHidden = file.is_hidden ? 0 : 1
+  db.prepare('UPDATE files SET is_hidden = ?, updated_at = ? WHERE id = ?').run(newHidden, Date.now(), id)
+  return newHidden === 1
 }

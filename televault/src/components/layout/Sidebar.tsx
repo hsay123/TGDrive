@@ -190,9 +190,6 @@ export function Sidebar() {
               )
             })()}
           </div>
-          <p className="text-xs text-gray-600">
-            {formatBytes(STORAGE_LIMIT_BYTES - storageUsed)} free
-          </p>
         </div>
 
         {/* User row */}

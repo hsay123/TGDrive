@@ -20,9 +20,11 @@ import {
   getStarredFiles as dbGetStarredFiles,
   toggleStar as dbToggleStar,
   renameFile as dbRenameFile,
+  toggleHidden as dbToggleHidden,
 } from '../db/files.db'
 import { restoreFromTrash, trashFolderContents, permanentlyDeleteTrashEntry } from '../db/trash.db'
 import { getSetting, setSetting } from '../db/settings.db'
+import { toggleFolderHidden as dbToggleFolderHidden } from '../db/folders.db'
 import { uploadFile as telegramUpload } from '../telegram/uploader'
 import { downloadFile as telegramDownload } from '../telegram/downloader'
 import {
@@ -47,6 +49,7 @@ export interface VFSFile {
   updatedAt: number
   thumbnailPath: string | null
   starred: number
+  isHidden: number
 }
 
 export interface VFSFolder {
@@ -59,6 +62,7 @@ export interface VFSFolder {
   updatedAt: number
   children: VFSFolder[]
   fileCount: number
+  isHidden: number
 }
 
 export type VFSEntry = VFSFile | VFSFolder
@@ -79,6 +83,7 @@ function mapFile(file: import('../db/schema').File): VFSFile {
     updatedAt: file.updated_at,
     thumbnailPath: file.thumbnail_path,
     starred: file.starred ?? 0,
+    isHidden: file.is_hidden ?? 0,
   }
 }
 
@@ -93,6 +98,7 @@ function mapFolderNode(node: FolderTreeNode): VFSFolder {
     updatedAt: node.updated_at,
     children: node.children.map(mapFolderNode),
     fileCount: node.fileCount,
+    isHidden: node.is_hidden ?? 0,
   }
 }
 
@@ -107,6 +113,7 @@ function mapFolder(folder: import('../db/schema').Folder): VFSFolder {
     updatedAt: folder.updated_at,
     children: [],
     fileCount: 0,
+    isHidden: folder.is_hidden ?? 0,
   }
 }
 
@@ -307,4 +314,12 @@ export async function moveFolder(
 ): Promise<void> {
   // Delegates to DB-level move which handles descendant rewrite atomically
   dbMoveFolder(folderId, normalizePath(newParentPath))
+}
+
+export async function toggleFileHidden(fileId: string): Promise<boolean> {
+  return dbToggleHidden(fileId)
+}
+
+export async function toggleFolderHidden(folderId: string): Promise<boolean> {
+  return dbToggleFolderHidden(folderId)
 }

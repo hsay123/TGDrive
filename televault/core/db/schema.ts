@@ -6,6 +6,7 @@ CREATE TABLE IF NOT EXISTS folders (
   path        TEXT NOT NULL UNIQUE,
   created_at  INTEGER NOT NULL,
   updated_at  INTEGER NOT NULL,
+  is_hidden   INTEGER NOT NULL DEFAULT 0,
   FOREIGN KEY (parent_id) REFERENCES folders(id) ON DELETE CASCADE
 );
 
@@ -22,6 +23,7 @@ CREATE TABLE IF NOT EXISTS files (
   uploaded_at    INTEGER NOT NULL,
   updated_at     INTEGER NOT NULL,
   thumbnail_path TEXT,
+  is_hidden      INTEGER NOT NULL DEFAULT 0,
   FOREIGN KEY (folder_id) REFERENCES folders(id) ON DELETE CASCADE
 );
 
@@ -82,6 +84,7 @@ export interface Folder {
   path: string
   created_at: number
   updated_at: number
+  is_hidden: number
 }
 
 export interface File {
@@ -98,6 +101,7 @@ export interface File {
   updated_at: number
   thumbnail_path: string | null
   starred: number
+  is_hidden: number
 }
 
 export interface Chunk {

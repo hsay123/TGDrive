@@ -449,5 +449,13 @@ export function registerFilesIpc(
       }
     })
   )
+
+  ipcMain.handle('files:toggleHidden', async (_event, fileId: string) =>
+    ipcResult(async () => {
+      const { toggleFileHidden } = await import('../../core/fs/vfs')
+      const hidden = await toggleFileHidden(fileId)
+      return { hidden }
+    })
+  )
 }
 

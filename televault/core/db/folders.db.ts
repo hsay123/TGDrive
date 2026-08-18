@@ -24,15 +24,16 @@ export function createFolder(
   }
 
   db.prepare(
-    `INSERT INTO folders (id, parent_id, name, path, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?)`
+    `INSERT INTO folders (id, parent_id, name, path, created_at, updated_at, is_hidden)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`
   ).run(
     folder.id,
     folder.parent_id,
     folder.name,
     folder.path,
     folder.created_at,
-    folder.updated_at
+    folder.updated_at,
+    folder.is_hidden ?? 0
   )
 
   return folder
@@ -56,18 +57,18 @@ export function getChildFolders(parentId: string | null): Folder[] {
   const db = getDb()
   if (parentId === null) {
     return db
-      .prepare('SELECT * FROM folders WHERE parent_id IS NULL ORDER BY name ASC')
+      .prepare('SELECT * FROM folders WHERE parent_id IS NULL AND is_hidden = 0 ORDER BY name ASC')
       .all() as Folder[]
   }
   return db
-    .prepare('SELECT * FROM folders WHERE parent_id = ? ORDER BY name ASC')
+    .prepare('SELECT * FROM folders WHERE parent_id = ? AND is_hidden = 0 ORDER BY name ASC')
     .all(parentId) as Folder[]
 }
 
 export function getAllFolders(): Folder[] {
   const db = getDb()
   return db
-    .prepare('SELECT * FROM folders ORDER BY path ASC')
+    .prepare('SELECT * FROM folders WHERE is_hidden = 0 ORDER BY path ASC')
     .all() as Folder[]
 }
 
@@ -113,7 +114,7 @@ export function getFolderTree(): FolderTreeNode[] {
   const folders = getAllFolders()
 
   const countRows = db
-    .prepare('SELECT folder_id, COUNT(*) AS count FROM files GROUP BY folder_id')
+    .prepare('SELECT folder_id, COUNT(*) AS count FROM files WHERE is_hidden = 0 GROUP BY folder_id')
     .all() as Array<{ folder_id: string; count: number }>
 
   const fileCountByFolder = new Map<string, number>()
@@ -266,4 +267,13 @@ export function moveFolder(id: string, newParentPath: string): void {
     }
   })
   tx()
+}
+
+export function toggleFolderHidden(id: string): boolean {
+  const db = getDb()
+  const folder = getFolderById(id)
+  if (!folder) throw new Error(`Folder not found: ${id}`)
+  const newHidden = folder.is_hidden ? 0 : 1
+  db.prepare('UPDATE folders SET is_hidden = ?, updated_at = ? WHERE id = ?').run(newHidden, Date.now(), id)
+  return newHidden === 1
 }
