@@ -1,6 +1,7 @@
 import { getDb } from './db'
 import type { Chunk, File, TrashEntry } from './schema'
 import { createFile, softDeleteFile } from './files.db'
+import { getChunksByFileId } from './chunks.db'
 import { createFolder, getFolderById, getFolderByPath } from './folders.db'
 
 export interface TrashRow {
@@ -221,53 +222,95 @@ export function trashFolderContents(folderId: string): void {
 }
 
 /**
- * Permanently delete a trash entry and all related DB records (chunks, versions).
- * Returns the chunks so the caller can delete the underlying Telegram messages.
+ * Resolve a trash entry by its trash row id, with a fallback to the original
+ * file_id (in case the caller passes a file id instead of the trash row id).
+ * Throws if nothing matches.
+ */
+export function resolveTrashEntry(trashId: string): TrashEntry {
+  const db = getDb()
+  const byId = db
+    .prepare('SELECT * FROM trash WHERE id = ?')
+    .get(trashId) as TrashEntry | undefined
+  if (byId) return byId
+
+  const byFileId = db
+    .prepare('SELECT * FROM trash WHERE file_id = ?')
+    .get(trashId) as TrashEntry | undefined
+  if (byFileId) return byFileId
+
+  throw new Error(`Trash entry not found: ${trashId}`)
+}
+
+/**
+ * Chunk records (Telegram message_id/channel_id) for a trashed file.
  *
- * Looks up by trash.id first, falls back to trash.file_id for robustness
- * (in case the frontend passes the original file ID instead of the trash row ID).
+ * After a soft delete the live file row is removed, which cascades the chunks
+ * rows out of the DB, so the authoritative source is the `_chunks` snapshot
+ * embedded in the trash row's file_data. Defensively, if chunk rows still
+ * exist in the DB (legacy entries) they win, since they are the source of
+ * truth for ordering.
+ */
+export function getTrashEntryChunks(entry: TrashEntry): Chunk[] {
+  if (entry.file_id) {
+    const live = getChunksByFileId(entry.file_id)
+    if (live.length > 0) return live
+  }
+
+  if (!entry.file_data) return []
+  try {
+    const parsed = JSON.parse(entry.file_data) as File & { _chunks?: Chunk[] }
+    return Array.isArray(parsed._chunks) ? parsed._chunks : []
+  } catch {
+    return []
+  }
+}
+
+/**
+ * Remove the DB records for a permanently-deleted trash entry — the chunks,
+ * versions, and the trash row itself, atomically.
+ *
+ * Callers MUST have already deleted the underlying Telegram messages and only
+ * call this once that has succeeded. Deleting the DB rows first would leave
+ * orphaned messages on Telegram with no record left to ever retry the cleanup.
+ */
+export function removeTrashEntryRecords(entry: TrashEntry): void {
+  const db = getDb()
+  db.transaction(() => {
+    if (entry.file_id) {
+      db.prepare('DELETE FROM chunks WHERE file_id = ?').run(entry.file_id)
+      db.prepare('DELETE FROM versions WHERE file_id = ?').run(entry.file_id)
+    }
+    db.prepare('DELETE FROM trash WHERE id = ?').run(entry.id)
+  })()
+}
+
+/**
+ * Back-compat DB-first permanent delete, kept because vfs.deleteFile's
+ * permanent branch delegates here (vfs.ts is out of scope for this fix).
+ *
+ * NOTE: the app's permanent-delete path is the ordered flow in
+ * electron/ipc/files.ipc.ts — Telegram deletion FIRST, DB cleanup only after
+ * it succeeds. This wrapper exists only so the vfs pass-through keeps working;
+ * it must not be used for new call sites.
  */
 export function permanentlyDeleteTrashEntry(trashId: string): {
   fileId: string
   chunks: Chunk[]
 } {
+  const entry = resolveTrashEntry(trashId)
+  const chunks = getTrashEntryChunks(entry)
+  removeTrashEntryRecords(entry)
+  return { fileId: entry.file_id ?? '', chunks }
+}
+
+/**
+ * All trash rows that have passed their retention window (`expires_at`).
+ * The expiry sweep runs each returned row through the same permanent-delete
+ * path as the manual "Delete permanently" flow.
+ */
+export function getExpiredTrashEntries(now: number = Date.now()): TrashEntry[] {
   const db = getDb()
-
-  // Look up by trash entry ID (the row's own `id`)
-  let trashEntry = db
-    .prepare('SELECT * FROM trash WHERE id = ?')
-    .get(trashId) as TrashEntry | undefined
-
-  // Fallback: try matching by the original file_id
-  if (!trashEntry) {
-    trashEntry = db
-      .prepare('SELECT * FROM trash WHERE file_id = ?')
-      .get(trashId) as TrashEntry | undefined
-  }
-
-  if (!trashEntry) {
-    throw new Error(`Trash entry not found: ${trashId}`)
-  }
-
-  if (!trashEntry.file_id) {
-    // Folder trash entry — just remove the trash row
-    db.prepare('DELETE FROM trash WHERE id = ?').run(trashEntry.id)
-    return { fileId: '', chunks: [] }
-  }
-
-  // Get chunks BEFORE deleting (need message_id + channel_id to delete from Telegram)
-  const chunks = db
-    .prepare('SELECT * FROM chunks WHERE file_id = ?')
-    .all(trashEntry.file_id) as Chunk[]
-
-  // Clean up all related DB records atomically
-  const transaction = db.transaction(() => {
-    db.prepare('DELETE FROM chunks WHERE file_id = ?').run(trashEntry.file_id)
-    db.prepare('DELETE FROM versions WHERE file_id = ?').run(trashEntry.file_id)
-    db.prepare('DELETE FROM trash WHERE id = ?').run(trashEntry.id)
-    // No need to DELETE FROM files — it was already removed by softDeleteFile()
-  })
-  transaction()
-
-  return { fileId: trashEntry.file_id, chunks }
+  return db
+    .prepare('SELECT * FROM trash WHERE expires_at < ? ORDER BY expires_at ASC')
+    .all(now) as TrashEntry[]
 }
