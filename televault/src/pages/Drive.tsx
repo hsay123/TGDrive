@@ -62,6 +62,9 @@ export default function Drive() {
   const cardRefs = useRef<Map<string, HTMLElement>>(new Map())
   const { state: dragState, onMouseDown, onMouseMove, onMouseUp } = useDragSelect(cardRefs)
 
+  // Scroll container of the split grid layout — enables FileGrid virtualization
+  const splitScrollRef = useRef<HTMLDivElement>(null)
+
   useUpload()
   useDownloadListener()
 
@@ -231,8 +234,18 @@ export default function Drive() {
             onMouseLeave={onMouseUp}
           >
             {isLoading && searchQuery.length <= 1 ? (
-              <div className="flex h-full items-center justify-center">
-                <Spinner size="lg" />
+              <div className="h-full overflow-y-auto" style={{ padding: '28px 28px' }}>
+                <div style={{ display: 'flex', gap: 40, flexWrap: 'wrap' }}>
+                  {Array.from({ length: 6 }).map((_, i) => (
+                    <div key={i} style={{
+                      width: 160, height: 200, borderRadius: 20,
+                      background: 'linear-gradient(90deg, var(--bg-2) 25%, var(--card) 50%, var(--bg-2) 75%)',
+                      backgroundSize: '200% 100%',
+                      animation: 'skeleton-shimmer 1.5s ease-in-out infinite',
+                      animationDelay: `${i * 0.08}s`,
+                    }} />
+                  ))}
+                </div>
               </div>
             ) : (
               <div className="h-full flex flex-col">
@@ -254,7 +267,10 @@ export default function Drive() {
 
                 {showSplitLayout ? (
                   /* ===== INSTUDY-STYLE SPLIT LAYOUT ===== */
-                  <div style={{ padding: '28px 28px', overflowY: 'auto', flex: 1 }}>
+                  <div
+                    ref={splitScrollRef}
+                    style={{ padding: '28px 28px', overflowY: 'auto', flex: 1 }}
+                  >
 
                     {/* FOLDERS SECTION */}
                     {folderEntries.length > 0 && (
@@ -305,7 +321,12 @@ export default function Drive() {
                     {fileEntries.length > 0 && (
                       <section>
                         <h2 style={sectionHeading}>Files</h2>
-                        <FileGrid entries={fileEntries} cardRefs={cardRefs} />
+                        <FileGrid
+                          entries={fileEntries}
+                          cardRefs={cardRefs}
+                          scrollRef={splitScrollRef}
+                          marqueeActive={dragState.isDragging}
+                        />
                       </section>
                     )}
 

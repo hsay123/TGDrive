@@ -1,8 +1,8 @@
-import { useRef, useState, useEffect, useCallback } from 'react'
+import { useRef, useState, useEffect, useCallback, memo } from 'react'
 import clsx from 'clsx'
 import { Folder, Lock, Star } from 'lucide-react'
 import toast from 'react-hot-toast'
-import type { VFSEntry } from '../../types'
+import type { VFSEntry, VFSFile } from '../../types'
 import { FileIcon } from './FileIcon'
 import { toThumbnailUrl } from '../../lib/tvfile'
 import { useFilesStore } from '../../store/files.store'
@@ -76,7 +76,39 @@ function releaseThumbSlot(): void {
 }
 // ────────────────────────────────────────────────────────────────────────────
 
-export function FileCard({
+// Memoized: a selection change only re-renders cards whose `selected` actually
+// flips, instead of re-rendering the whole grid. Phase 1 measured ~150-600 card
+// re-renders (~10-26ms) per single click — see PERF-P1-PHASE.md §4.
+//
+// The comparator deliberately ignores the callback props: they change identity
+// every render, but only close over the stable row `entry` plus stable store
+// actions, so an ignored (stale) closure stays functionally correct — any card
+// whose selected state changed DID re-render and receives fresh closures.
+//
+// It compares the mutable entry fields (not object identity) so a refreshed
+// entries array that leaves a given file unchanged does NOT force a re-render.
+const fileCardComparator = (prev: FileCardProps, next: FileCardProps): boolean => {
+  if (prev.selected !== next.selected) return false
+  if (prev.entry.id !== next.entry.id) return false
+  if (prev.entry.type !== next.entry.type) return false
+  if (prev.entry.name !== next.entry.name) return false
+  if (prev.entry.path !== next.entry.path) return false
+  if (prev.entry.updatedAt !== next.entry.updatedAt) return false
+  if (prev.entry.type === 'folder' || next.entry.type === 'folder') return true
+  const a = prev.entry as VFSFile
+  const b = next.entry as VFSFile
+  return (
+    a.size === b.size &&
+    a.mimeType === b.mimeType &&
+    a.folderId === b.folderId &&
+    a.uploadedAt === b.uploadedAt &&
+    a.thumbnailPath === b.thumbnailPath &&
+    a.starred === b.starred
+  )
+}
+
+export const FileCard = memo(
+  function FileCard({
   entry,
   selected,
   onSelect,
@@ -183,7 +215,9 @@ export function FileCard({
           generateThumb()
         }
       },
-      { threshold: 0.1 }
+      // Preload buffer: start generating a frame 100px before the card scrolls
+      // into view, so by the time it's visible the thumbnail is usually ready.
+      { threshold: 0.1, rootMargin: '100px' }
     )
     observer.observe(el)
     return () => observer.disconnect()
@@ -348,7 +382,9 @@ export function FileCard({
       </div>
     </div>
   )
-}
+},
+fileCardComparator
+)
 
 function VideoPlayBadge() {
   return (

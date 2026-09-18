@@ -3,7 +3,6 @@ import {
   createFolder,
   getFolderById,
   getFolderByPath,
-  getChildFolders,
   deleteFolder as deleteFolderRecord,
   getFolderTree,
   renameFolder as dbRenameFolder,
@@ -11,7 +10,6 @@ import {
   type FolderTreeNode,
 } from '../db/folders.db'
 import {
-  getFilesByFolder,
   getFileById,
   softDeleteFile,
   moveFile,
@@ -22,6 +20,7 @@ import {
   renameFile as dbRenameFile,
   toggleHidden as dbToggleHidden,
 } from '../db/files.db'
+import { getDb } from '../db/db'
 import { restoreFromTrash, trashFolderContents, permanentlyDeleteTrashEntry } from '../db/trash.db'
 import { getSetting, setSetting } from '../db/settings.db'
 import { toggleFolderHidden as dbToggleFolderHidden } from '../db/folders.db'
@@ -128,15 +127,54 @@ export function ensureRootFolder(): void {
 export async function listFolder(folderPath: string): Promise<VFSEntry[]> {
   ensureRootFolder()
   const normalized = normalizePath(folderPath)
-  const folder = getFolderByPath(normalized)
+  const db = getDb()
+  const folder = db
+    .prepare('SELECT * FROM folders WHERE path = ?')
+    .get(normalized) as import('../db/schema').Folder | undefined
   if (!folder) {
     throw new Error(`Folder not found: ${normalized}`)
   }
 
   const includeHidden = isRevealGateUnlocked()
-  const subfolders = getChildFolders(folder.id, includeHidden).map(mapFolder)
-  const files = getFilesByFolder(folder.id, includeHidden).map(mapFile)
-  return [...subfolders, ...files]
+  const folderId = folder.id
+
+  // Query 1 — child folders with file counts computed in ONE correlated
+  // subquery (no per-folder COUNT calls — O(1) DB operations, not O(n)).
+  const hiddenFilter = includeHidden ? '' : 'AND is_hidden = 0'
+  const subfolders = db
+    .prepare(`
+      SELECT f.*,
+        (SELECT COUNT(*) FROM files WHERE folder_id = f.id ${includeHidden ? '' : 'AND is_hidden = 0'}) AS file_count
+      FROM folders f
+      WHERE f.parent_id = ? ${hiddenFilter}
+      ORDER BY f.name ASC
+    `)
+    .all(folderId) as (import('../db/schema').Folder & { file_count: number })[]
+
+  // Query 2 — files in this folder (flat, no joins).
+  const files = db
+    .prepare(
+      includeHidden
+        ? 'SELECT * FROM files WHERE folder_id = ? ORDER BY name ASC'
+        : 'SELECT * FROM files WHERE folder_id = ? AND is_hidden = 0 ORDER BY name ASC'
+    )
+    .all(folderId) as import('../db/schema').File[]
+
+  const folderEntries: VFSEntry[] = subfolders.map((f) => ({
+    id: f.id,
+    type: 'folder',
+    name: f.name,
+    path: f.path,
+    parentId: f.parent_id,
+    createdAt: f.created_at,
+    updatedAt: f.updated_at,
+    children: [],
+    fileCount: f.file_count,
+    isHidden: f.is_hidden ?? 0,
+  }))
+
+  const fileEntries: VFSEntry[] = files.map(mapFile)
+  return [...folderEntries, ...fileEntries]
 }
 
 export async function createFolderAtPath(folderPath: string): Promise<VFSFolder> {
