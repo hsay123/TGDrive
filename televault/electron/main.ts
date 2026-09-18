@@ -15,6 +15,7 @@ import { initUpdater, installUpdate } from './updater'
 import { ipcResult } from './ipc/helpers'
 import { registerSystemAvatarIpc } from './ipc/system.ipc'
 import { registerRevealIpc } from './ipc/reveal.ipc'
+import { registerTrashExpiry } from './ipc/trash-expiry'
 
 config()
 
@@ -142,6 +143,7 @@ function registerAllIpc(): void {
   registerSystemIpc()
   registerSystemAvatarIpc()
   registerRevealIpc(ipcMain)
+  registerTrashExpiry()
 }
 
 function isPathInsideDir(baseDir: string, targetPath: string): boolean {

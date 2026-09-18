@@ -7,16 +7,29 @@ import { execSync } from 'child_process'
 import { v4 as uuidv4 } from 'uuid'
 import * as vfs from '../../core/fs/vfs'
 import { getVersionsByFileId } from '../../core/db/versions.db'
-import { getTrashedFiles } from '../../core/db/trash.db'
+import {
+  getTrashedFiles,
+  resolveTrashEntry,
+  getTrashEntryChunks,
+  removeTrashEntryRecords,
+} from '../../core/db/trash.db'
 import {
   getFileById,
   getAllFiles,
   updateFileThumbnail,
 } from '../../core/db/files.db'
 import { downloadFile } from '../../core/telegram/downloader'
-import type { Version } from '../../core/db/schema'
+import type { Version, Chunk } from '../../core/db/schema'
 import { ipcResult } from './helpers'
-import { initializeChannels, channelsReady } from '../../core/telegram/channels'
+import {
+  initializeChannels,
+  channelsReady,
+  getChannelEntity,
+  getChannelId,
+  type ChannelPurpose,
+} from '../../core/telegram/channels'
+import { getClient } from '../../core/telegram/client'
+import { withRetry, withEntityRetry } from '../../core/telegram/ratelimit'
 
 export interface VersionRow {
   id: string
@@ -47,6 +60,68 @@ function mapVersion(v: Version): VersionRow {
     uploadedAt: v.uploaded_at,
     label: v.label,
   }
+}
+
+/**
+ * Delete a set of Telegram messages for a set of chunks, grouped by channel.
+ * Every channel group must succeed; if any group fails, this throws and NOTHING
+ * is reported as deleted — callers rely on that to keep the DB records intact.
+ */
+async function deleteChunksFromTelegram(chunks: Chunk[]): Promise<void> {
+  // Group chunk message ids by their channel_id.
+  const messageIdsByChannel = new Map<string, number[]>()
+  for (const chunk of chunks) {
+    const ids = messageIdsByChannel.get(chunk.channel_id) || []
+    ids.push(chunk.message_id)
+    messageIdsByChannel.set(chunk.channel_id, ids)
+  }
+
+  // Map each channel_id to the TeleVault channel purpose so every group is
+  // deleted from ITS OWN channel (chunks can legitimately span channels).
+  const purposeByChannelId = new Map<string, ChannelPurpose>()
+  for (const purpose of ['storage', 'index', 'trash'] as const) {
+    try {
+      purposeByChannelId.set(await getChannelId(purpose), purpose)
+    } catch {
+      // Channel not initialized — a chunk group referencing it fails below,
+      // which is the correct outcome (no partial deletion).
+    }
+  }
+
+  const tg = getClient()
+  for (const [channelId, messageIds] of messageIdsByChannel) {
+    const purpose = purposeByChannelId.get(channelId)
+    if (!purpose) {
+      throw new Error(
+        `Cannot resolve channel ${channelId} — it is not a recognized TeleVault channel.`
+      )
+    }
+    const entity = await getChannelEntity(purpose)
+    await withEntityRetry(() =>
+      withRetry(() => tg.deleteMessages(entity, messageIds, { revoke: true }))
+    )
+  }
+}
+
+/**
+ * Permanently delete a trash entry: Telegram messages FIRST, DB records
+ * (chunks, versions, trash row) only AFTER every message is confirmed deleted.
+ *
+ * Shared by the 'files:delete' IPC handler and the trash expiry sweep, so there
+ * is a single permanent-delete path and expiry can never silently orphan
+ * Telegram messages.
+ */
+export async function permanentlyDeleteFile(trashId: string): Promise<void> {
+  const entry = resolveTrashEntry(trashId)
+  const chunks = getTrashEntryChunks(entry)
+
+  // 1. Delete the actual Telegram messages first — all channel groups.
+  if (chunks.length > 0) {
+    await deleteChunksFromTelegram(chunks)
+  }
+
+  // 2. Only once every message is confirmed gone, remove the DB records.
+  removeTrashEntryRecords(entry)
 }
 
 // Track in-flight uploads so they can be cancelled
@@ -218,34 +293,26 @@ export function registerFilesIpc(
     'files:delete',
     async (_event, fileId: string, permanent?: boolean) =>
       ipcResult(async () => {
-        const result = await vfs.deleteFile(fileId, permanent)
-
-        // If permanent delete, also delete from Telegram (best-effort)
-        if (permanent && result && result.fileId && result.chunks.length > 0) {
+        if (permanent) {
           try {
-            const { getClient } = await import('../../core/telegram/client')
-            const { getChannelEntity } = await import('../../core/telegram/channels')
-            const { withRetry, withEntityRetry } = await import('../../core/telegram/ratelimit')
-
-            const tg = getClient()
-            // Group chunks by channel_id
-            const messageIdsByChannel = new Map<string, number[]>()
-            for (const chunk of result.chunks) {
-              const ids = messageIdsByChannel.get(chunk.channel_id) || []
-              ids.push(chunk.message_id)
-              messageIdsByChannel.set(chunk.channel_id, ids)
-            }
-
-            for (const [, messageIds] of messageIdsByChannel) {
-              const entity = await getChannelEntity('storage')
-              await withEntityRetry(() =>
-                withRetry(() => tg.deleteMessages(entity, messageIds, { revoke: true }))
-              )
-            }
+            // Telegram messages are deleted FIRST; the DB rows (chunks,
+            // versions, trash entry) are only removed once every channel group
+            // has been deleted successfully. If anything fails, the trash
+            // entry survives fully intact and is retryable — a soft-deleting
+            // the DB first would leave orphaned messages on Telegram forever.
+            await permanentlyDeleteFile(fileId)
           } catch (err) {
-            // DB cleanup already succeeded — log but don't throw
-            console.error('[permanentDelete] Failed to delete from Telegram (non-fatal):', err)
+            const reason = err instanceof Error ? err.message : String(err)
+            console.error(
+              '[permanentDelete] Telegram deletion failed — DB records retained for retry:',
+              err
+            )
+            throw new Error(
+              `Permanent delete failed: ${reason}. Nothing was removed — the item is still in Trash and will be retried. Please try again.`
+            )
           }
+        } else {
+          await vfs.deleteFile(fileId, false)
         }
       })
   )
