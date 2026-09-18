@@ -1,5 +1,5 @@
 import { motion } from 'motion/react'
-import { useState, useId } from 'react'
+import { useState, useId, memo } from 'react'
 
 interface FolderCardProps {
   name: string
@@ -10,7 +10,18 @@ interface FolderCardProps {
   onContextMenu?: (e: React.MouseEvent) => void
 }
 
-export function FolderCard({
+// Memoized so navigation/selection re-renders skip unchanged folder cards.
+// Callback props are ignored: they're recreated every render but only close
+// over the folder id, so a stale closure stays functionally correct.
+const folderCardComparator = (
+  prev: FolderCardProps,
+  next: FolderCardProps
+): boolean =>
+  prev.name === next.name &&
+  prev.fileCount === next.fileCount &&
+  prev.selected === next.selected
+
+export const FolderCard = memo(function FolderCard({
   name, fileCount, onClick, onDoubleClick, onContextMenu,
 }: FolderCardProps) {
   const [hovered, setHovered] = useState(false)
@@ -173,4 +184,4 @@ export function FolderCard({
       </div>
     </div>
   )
-}
+}, folderCardComparator)

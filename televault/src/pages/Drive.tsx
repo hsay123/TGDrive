@@ -234,8 +234,18 @@ export default function Drive() {
             onMouseLeave={onMouseUp}
           >
             {isLoading && searchQuery.length <= 1 ? (
-              <div className="flex h-full items-center justify-center">
-                <Spinner size="lg" />
+              <div className="h-full overflow-y-auto" style={{ padding: '28px 28px' }}>
+                <div style={{ display: 'flex', gap: 40, flexWrap: 'wrap' }}>
+                  {Array.from({ length: 6 }).map((_, i) => (
+                    <div key={i} style={{
+                      width: 160, height: 200, borderRadius: 20,
+                      background: 'linear-gradient(90deg, var(--bg-2) 25%, var(--card) 50%, var(--bg-2) 75%)',
+                      backgroundSize: '200% 100%',
+                      animation: 'skeleton-shimmer 1.5s ease-in-out infinite',
+                      animationDelay: `${i * 0.08}s`,
+                    }} />
+                  ))}
+                </div>
               </div>
             ) : (
               <div className="h-full flex flex-col">

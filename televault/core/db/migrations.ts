@@ -176,4 +176,30 @@ export function runMigrations(db: Database.Database): void {
     apply()
     console.log('[migration 7] Created perf indexes (folder_id/name, chunks.file_id, uploaded_at)')
   }
+
+  // Migration 8: navigation-indexes. files:list filters by folder_id then
+  // orders by name; folder tree builds walk parent_id; navigate/move/rename
+  // look up by path; recent/starred filter by uploaded_at / starred. These
+  // indexes turn those scans + TEMP B-TREE sorts into index seeks.
+  if (!applied.has(8)) {
+    const apply = db.transaction(() => {
+      db.exec(`
+        CREATE INDEX IF NOT EXISTS idx_files_folder_id_uploaded_at
+          ON files (folder_id, uploaded_at);
+        CREATE INDEX IF NOT EXISTS idx_folders_parent_id
+          ON folders (parent_id, name);
+        CREATE INDEX IF NOT EXISTS idx_folders_path
+          ON folders (path);
+        CREATE INDEX IF NOT EXISTS idx_files_path
+          ON files (path);
+        CREATE INDEX IF NOT EXISTS idx_files_starred
+          ON files (starred);
+      `)
+      db.prepare(
+        'INSERT INTO schema_migrations (version, applied_at) VALUES (?, ?)'
+      ).run(8, Date.now())
+    })
+    apply()
+    console.log('[migration 8] Created folder-navigation indexes (files.folder_id/uploaded_at, folders.parent_id/path, files.path/starred)')
+  }
 }
