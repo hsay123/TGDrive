@@ -26,9 +26,14 @@ export function useDragSelect(
   const button          = useRef<number>(0)
   const animFrameId     = useRef<number | null>(null)
 
-  // ── OPTIMIZATION 1: Cache all card rects on mousedown ──────────────────────
-  // Populated once per drag — never calls getBoundingClientRect in onMouseMove
+  // ── OPTIMIZATION 1: Cache all card rects — never calls getBoundingClientRect
+  //    in onMouseMove. Populated lazily on the first drag frame.
+  // Under grid virtualization only the visible cards are mounted at mousedown,
+  // so we defer measurement until AFTER FileGrid has switched to its full
+  // (non-virtualized) layout for the drag. The single deferred frame guarantees
+  // every card exists when we read its rect.
   const cachedRects     = useRef<Map<string, BBox>>(new Map())
+  const rectsNeedSync   = useRef(true)
 
   // ── OPTIMIZATION 3: Track last hit set to skip no-op store updates ──────────
   const lastHitKey      = useRef<string>('')
@@ -60,18 +65,11 @@ export function useDragSelect(
     didDrag.current  = false
     lastHitKey.current = ''
 
-    // ── Cache every card's BBox exactly once ────────────────────────────────
-    // getBoundingClientRect() is safe here — only called on mousedown (not in rAF loop)
+    // Rects are captured on the first drag frame (after the grid has switched
+    // to its full layout if virtualization is active), not here at mousedown —
+    // see note above. Clear any stale cache from a previous drag.
     cachedRects.current.clear()
-    cardRefs.current?.forEach((el, id) => {
-      const cr = el.getBoundingClientRect()
-      cachedRects.current.set(id, {
-        left:   cr.left,
-        top:    cr.top,
-        right:  cr.right,
-        bottom: cr.bottom,
-      })
-    })
+    rectsNeedSync.current = true
 
     setState({ isDragging: false, marquee: null })
   }, [cardRefs])
@@ -120,18 +118,41 @@ export function useDragSelect(
         bottom: marquee.y + marquee.height,
       }
 
-      // 2 — Intersect against CACHED rects (zero getBoundingClientRect calls)
-      const hit: string[] = []
-      cachedRects.current.forEach((bbox, id) => {
-        if (rectsIntersect(mbox, bbox)) hit.push(id)
-      })
+      const computeHits = () => {
+        // 2 — Intersect against CACHED rects (zero getBoundingClientRect calls)
+        const hit: string[] = []
+        cachedRects.current.forEach((bbox, id) => {
+          if (rectsIntersect(mbox, bbox)) hit.push(id)
+        })
 
-      // 3 — Skip store update if selection hasn't changed (avoid re-render)
-      const hitKey = hit.sort().join(',')
-      if (hitKey === lastHitKey.current) return
-      lastHitKey.current = hitKey
+        // 3 — Skip store update if selection hasn't changed (avoid re-render)
+        const hitKey = hit.sort().join(',')
+        if (hitKey === lastHitKey.current) return
+        lastHitKey.current = hitKey
 
-      useFilesStore.setState({ selectedIds: new Set(hit) })
+        useFilesStore.setState({ selectedIds: new Set(hit) })
+      }
+
+      if (rectsNeedSync.current) {
+        // Latest FileGrid commit (full grid during marquee) lands before the
+        // next frame, so read every card's rect now via one deferred frame.
+        requestAnimationFrame(() => {
+          rectsNeedSync.current = false
+          cachedRects.current.clear()
+          cardRefs.current?.forEach((el, id) => {
+            const cr = el.getBoundingClientRect()
+            cachedRects.current.set(id, {
+              left:   cr.left,
+              top:    cr.top,
+              right:  cr.right,
+              bottom: cr.bottom,
+            })
+          })
+          computeHits()
+        })
+      } else {
+        computeHits()
+      }
     })
   }, [])  // no deps — everything read via refs
 

@@ -154,4 +154,26 @@ export function runMigrations(db: Database.Database): void {
     apply()
     console.log('[migration 6] Ensured is_hidden column exists on files and folders tables')
   }
+
+  // Migration 7: perf indexes — folder listing, chunk reads, recent-files sort.
+  // Phase 1 measured: folder listings/search/recent/starred SCAN files +
+  // USE TEMP B-TREE FOR ORDER BY; getChunksByFileId SCANs chunks (SQLite does
+  // not auto-index FKs). See PERF-P1-PHASE.md §3.
+  if (!applied.has(7)) {
+    const apply = db.transaction(() => {
+      db.exec(`
+        CREATE INDEX IF NOT EXISTS idx_files_folder_id_name
+          ON files (folder_id, name);
+        CREATE INDEX IF NOT EXISTS idx_chunks_file_id
+          ON chunks (file_id);
+        CREATE INDEX IF NOT EXISTS idx_files_uploaded_at
+          ON files (uploaded_at);
+      `)
+      db.prepare(
+        'INSERT INTO schema_migrations (version, applied_at) VALUES (?, ?)'
+      ).run(7, Date.now())
+    })
+    apply()
+    console.log('[migration 7] Created perf indexes (folder_id/name, chunks.file_id, uploaded_at)')
+  }
 }

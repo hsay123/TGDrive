@@ -62,6 +62,9 @@ export default function Drive() {
   const cardRefs = useRef<Map<string, HTMLElement>>(new Map())
   const { state: dragState, onMouseDown, onMouseMove, onMouseUp } = useDragSelect(cardRefs)
 
+  // Scroll container of the split grid layout — enables FileGrid virtualization
+  const splitScrollRef = useRef<HTMLDivElement>(null)
+
   useUpload()
   useDownloadListener()
 
@@ -254,7 +257,10 @@ export default function Drive() {
 
                 {showSplitLayout ? (
                   /* ===== INSTUDY-STYLE SPLIT LAYOUT ===== */
-                  <div style={{ padding: '28px 28px', overflowY: 'auto', flex: 1 }}>
+                  <div
+                    ref={splitScrollRef}
+                    style={{ padding: '28px 28px', overflowY: 'auto', flex: 1 }}
+                  >
 
                     {/* FOLDERS SECTION */}
                     {folderEntries.length > 0 && (
@@ -305,7 +311,12 @@ export default function Drive() {
                     {fileEntries.length > 0 && (
                       <section>
                         <h2 style={sectionHeading}>Files</h2>
-                        <FileGrid entries={fileEntries} cardRefs={cardRefs} />
+                        <FileGrid
+                          entries={fileEntries}
+                          cardRefs={cardRefs}
+                          scrollRef={splitScrollRef}
+                          marqueeActive={dragState.isDragging}
+                        />
                       </section>
                     )}
 

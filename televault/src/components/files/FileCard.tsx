@@ -1,4 +1,4 @@
-import { useRef, useState, useEffect, useCallback } from 'react'
+import { useRef, useState, useEffect, useCallback, memo } from 'react'
 import clsx from 'clsx'
 import { Folder, Lock, Star } from 'lucide-react'
 import toast from 'react-hot-toast'
@@ -76,7 +76,19 @@ function releaseThumbSlot(): void {
 }
 // ────────────────────────────────────────────────────────────────────────────
 
-export function FileCard({
+// Memoized: a selection change only re-renders cards whose `selected` actually
+// flips, instead of re-rendering the whole grid. Phase 1 measured ~150-600 card
+// re-renders (~10-26ms) per single click — see PERF-P1-PHASE.md §4.
+//
+// The comparator deliberately ignores the callback props: they change identity
+// every render, but only close over the stable row `entry` plus stable store
+// actions, so an ignored (stale) closure stays functionally correct — any card
+// whose selected state changed DID re-render and receives fresh closures.
+const fileCardComparator = (prev: FileCardProps, next: FileCardProps): boolean =>
+  prev.entry === next.entry && prev.selected === next.selected
+
+export const FileCard = memo(
+  function FileCard({
   entry,
   selected,
   onSelect,
@@ -348,7 +360,9 @@ export function FileCard({
       </div>
     </div>
   )
-}
+},
+fileCardComparator
+)
 
 function VideoPlayBadge() {
   return (

@@ -1,12 +1,18 @@
+import { Suspense, lazy } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
-import { Cloud } from 'lucide-react'
+import { Cloud, Loader2 } from 'lucide-react'
 import { ToastProvider } from './components/shared/Toast'
 import { AppInit } from './components/AppInit'
 import { isTelevaultAvailable } from './lib/electron'
-import Login from './pages/Login'
-import Drive from './pages/Drive'
-import Settings from './pages/Settings'
-import Setup from './pages/Setup'
+
+// Route-level code splitting: each page (and its dependency graph) is fetched
+// only when first navigated to. Phase 1 measured a single 475 kB (147 kB gzip)
+// entry; splitting moves Setup/Login/Settings out of the startup path — the
+// win is mostly for the first-run setup/login screens. See PERF-P1-PHASE.md §5.
+const Login = lazy(() => import('./pages/Login'))
+const Drive = lazy(() => import('./pages/Drive'))
+const Settings = lazy(() => import('./pages/Settings'))
+const Setup = lazy(() => import('./pages/Setup'))
 
 /**
  * App.tsx — pure router shell.
@@ -38,6 +44,14 @@ function BrowserSplash() {
   )
 }
 
+function RouteFallback() {
+  return (
+    <div className="flex h-screen w-full items-center justify-center bg-gray-950">
+      <Loader2 className="h-6 w-6 animate-spin text-violet-400" />
+    </div>
+  )
+}
+
 export default function App() {
   if (!isTelevaultAvailable()) {
     return <BrowserSplash />
@@ -46,19 +60,21 @@ export default function App() {
   return (
     <BrowserRouter>
       <ToastProvider />
-      <Routes>
-        {/* Entry point — AppInit decides where to send the user, runs once */}
-        <Route path="/" element={<AppInit />} />
+      <Suspense fallback={<RouteFallback />}>
+        <Routes>
+          {/* Entry point — AppInit decides where to send the user, runs once */}
+          <Route path="/" element={<AppInit />} />
 
-        {/* Standalone pages — no credential guards, no re-init */}
-        <Route path="/setup" element={<Setup />} />
-        <Route path="/login" element={<Login />} />
-        <Route path="/drive" element={<Drive />} />
-        <Route path="/settings" element={<Settings />} />
+          {/* Standalone pages — no credential guards, no re-init */}
+          <Route path="/setup" element={<Setup />} />
+          <Route path="/login" element={<Login />} />
+          <Route path="/drive" element={<Drive />} />
+          <Route path="/settings" element={<Settings />} />
 
-        {/* Fallback */}
-        <Route path="*" element={<Navigate to="/" replace />} />
-      </Routes>
+          {/* Fallback */}
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </Suspense>
     </BrowserRouter>
   )
 }
