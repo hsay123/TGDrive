@@ -1,12 +1,17 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo, type ComponentType, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { Modal } from '../shared/Modal'
 import { Spinner } from '../shared/Spinner'
 import { FileIcon } from './FileIcon'
 import { formatFileSize } from '../../lib/utils'
 import { toPreviewUrl } from '../../lib/tvfile'
+import {
+  getTextPreviewMode,
+  TEXT_PREVIEW_MAX_BYTES,
+  type TextPreviewMode,
+} from '../../lib/filePreviewMode'
 import type { VFSEntry } from '../../types'
-import { Download, Trash2, Music, Share2, Info, X } from 'lucide-react'
+import { Download, Trash2, Music, Share2, Info, X, Code2 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { useFilesStore } from '../../store/files.store'
 import { useUIStore } from '../../store/ui.store'
@@ -31,6 +36,10 @@ export function FilePreview({ entry, onClose }: FilePreviewProps) {
   const [previewError, setPreviewError] = useState<string | null>(null)
   const [isDownloading, setIsDownloading] = useState(false)
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null)
+  const [textContent, setTextContent] = useState<string | null>(null)
+  const [MarkdownRenderer, setMarkdownRenderer] = useState<ComponentType<any> | null>(null)
+  const [highlightCodeFn, setHighlightCodeFn] = useState<((code: string, lang: string) => string) | null>(null)
+  const [highlightLang, setHighlightLang] = useState<string | null>(null)
 
   const refreshFolder = useFilesStore((s) => s.refreshFolder)
   const setPreviewEntryId = useUIStore((s) => s.setPreviewEntryId)
@@ -41,9 +50,13 @@ export function FilePreview({ entry, onClose }: FilePreviewProps) {
   const isAudio = mime.startsWith('audio/')
   const isPdf = mime === 'application/pdf'
   const needsPreview = isPreviewable(mime)
+  const textMode = useMemo<TextPreviewMode | null>(
+    () => (entry?.type === 'file' ? getTextPreviewMode(entry.name, entry.mimeType) : null),
+    [entry]
+  )
 
   useEffect(() => {
-    if (!entry || entry.type !== 'file' || !needsPreview) {
+    if (!entry || entry.type !== 'file' || (!needsPreview && !textMode)) {
       return
     }
 
@@ -53,15 +66,57 @@ export function FilePreview({ entry, onClose }: FilePreviewProps) {
     setPreviewError(null)
     setIsLoadingPreview(true)
     setContextMenu(null)
+    setTextContent(null)
+    setMarkdownRenderer(null)
+    setHighlightCodeFn(null)
+    setHighlightLang(null)
 
     ;(async () => {
       try {
+        // Never pull a huge file into the preview just to read it: guard on the
+        // recorded size before touching the network, and re-guard on the actual
+        // text length after (covers entries whose size was unknown at upload).
+        if (textMode && entry.size > TEXT_PREVIEW_MAX_BYTES) {
+          throw new Error('File is too large to preview (5 MB limit). Download it to view the full content.')
+        }
+
         const tempResult = await window.televault.files.downloadToTemp(entry.id)
         if (cancelled) return
         if (!tempResult.success || !tempResult.data) {
           throw new Error(tempResult.error ?? 'Download failed')
         }
-        setPreviewUrl(toPreviewUrl(tempResult.data))
+        const cachedPath = tempResult.data
+
+        if (textMode) {
+          // Notes / code: fetch the raw UTF-8 text and render it ourselves
+          // (markdown renderer or syntax highlighter) instead of ever exposing
+          // the file as a live document.
+          const response = await fetch(toPreviewUrl(cachedPath))
+          if (!response.ok) {
+            throw new Error(`Could not read file content (HTTP ${response.status})`)
+          }
+          const text = await response.text()
+          if (cancelled) return
+          if (text.length > TEXT_PREVIEW_MAX_BYTES) {
+            throw new Error('File is too large to preview (5 MB limit). Download it to view the full content.')
+          }
+          setTextContent(text)
+
+          if (textMode.kind === 'notes') {
+            if (textMode.markdown) {
+              const { default: Markdown } = await import('react-markdown')
+              if (!cancelled) setMarkdownRenderer(() => Markdown)
+            }
+          } else if (textMode.kind === 'code') {
+            const { highlightCode } = await import('../../lib/codeHighlight')
+            if (!cancelled) {
+              setHighlightCodeFn(() => highlightCode)
+              setHighlightLang(textMode.lang)
+            }
+          }
+        } else {
+          setPreviewUrl(toPreviewUrl(cachedPath))
+        }
       } catch (err) {
         if (!cancelled) {
           setPreviewError((err as Error).message ?? 'Preview failed')
@@ -74,7 +129,7 @@ export function FilePreview({ entry, onClose }: FilePreviewProps) {
     return () => {
       cancelled = true
     }
-  }, [entry?.id, needsPreview])
+  }, [entry?.id, needsPreview, textMode])
 
   useEffect(() => {
     const handleGlobalClick = () => setContextMenu(null)
@@ -476,6 +531,164 @@ export function FilePreview({ entry, onClose }: FilePreviewProps) {
     )
   }
 
+  // --- FULL-SCREEN NOTES VIEWER (Markdown / plain text) ---
+  if (textMode?.kind === 'notes') {
+    return createPortal(
+      <div
+        className="fixed inset-0 z-50 flex flex-col bg-[#0a0a0f]/95 backdrop-blur-md animate-in fade-in duration-200"
+        onClick={onClose}
+        onContextMenu={handleContextMenu}
+      >
+        {/* Minimal top bar: filename + close */}
+        <div
+          className="flex items-center justify-between gap-4 px-5 py-3 shrink-0 select-none"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="flex min-w-0 items-center gap-2.5">
+            <FileIcon mime={mime} size="sm" />
+            <span className="truncate text-sm font-medium text-gray-200">{entry.name}</span>
+          </div>
+          <button
+            onClick={onClose}
+            aria-label="Close preview"
+            className="p-2 rounded-full bg-white/5 hover:bg-white/10 text-white/70 hover:text-white transition-colors shrink-0"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+
+        {isLoadingPreview && (
+          <div className="flex flex-1 items-center justify-center text-gray-400">
+            <div className="flex flex-col items-center gap-3">
+              <Spinner size="lg" />
+              <span className="text-sm">Loading preview…</span>
+            </div>
+          </div>
+        )}
+
+        {previewError && (
+          <div className="flex flex-1 items-center justify-center">
+            <div className="flex flex-col items-center gap-3">
+              <FileIcon mime={mime} size="lg" />
+              <p className="text-sm font-medium text-red-400">Couldn't load preview</p>
+              <p className="text-xs text-gray-500 max-w-xs text-center">{previewError}</p>
+            </div>
+          </div>
+        )}
+
+        {textContent && !isLoadingPreview && !previewError && (
+          <div
+            className="flex-1 min-h-0 overflow-y-auto px-6 py-8"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="mx-auto max-w-[720px]">
+              {textMode.markdown && MarkdownRenderer ? (
+                <MarkdownRenderer
+                  className="tv-md"
+                  components={{
+                    // Keep the preview self-contained: route any link the app
+                    // hasn't seen to the OS browser via Electron's window-open
+                    // handler, never navigate inside the app.
+                    a: ({ href, children }: { href?: string; children?: ReactNode }) => (
+                      <a
+                        href={href}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        onClick={(e) => {
+                          if (href) {
+                            e.preventDefault()
+                            window.open(href, '_blank')
+                          }
+                        }}
+                      >
+                        {children}
+                      </a>
+                    ),
+                  }}
+                >
+                  {textContent}
+                </MarkdownRenderer>
+              ) : (
+                <pre className="tv-txt whitespace-pre-wrap">{textContent}</pre>
+              )}
+            </div>
+          </div>
+        )}
+
+        <ContextMenuDropdown />
+      </div>,
+      document.body
+    )
+  }
+
+  // --- FULL-SCREEN CODE EDITOR (syntax-highlighted source) ---
+  if (textMode?.kind === 'code') {
+    return createPortal(
+      <div
+        className="fixed inset-0 z-50 flex flex-col bg-[#0a0a0f]/95 backdrop-blur-md animate-in fade-in duration-200"
+        onClick={onClose}
+        onContextMenu={handleContextMenu}
+      >
+        {/* Minimal top bar: filename + language badge + close */}
+        <div
+          className="flex items-center justify-between gap-4 px-5 py-3 shrink-0 select-none"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="flex min-w-0 items-center gap-3">
+            <FileIcon mime={mime} size="sm" />
+            <span className="truncate text-sm font-medium text-gray-200">{entry.name}</span>
+            <span className="inline-flex items-center gap-1.5 rounded-md bg-[#0d1117] border border-white/10 px-2 py-0.5 text-[11px] font-medium text-gray-400">
+              <Code2 className="h-3 w-3" />
+              {textMode.lang}
+            </span>
+          </div>
+          <button
+            onClick={onClose}
+            aria-label="Close preview"
+            className="p-2 rounded-full bg-white/5 hover:bg-white/10 text-white/70 hover:text-white transition-colors shrink-0"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+
+        {isLoadingPreview && (
+          <div className="flex flex-1 items-center justify-center text-gray-400">
+            <div className="flex flex-col items-center gap-3">
+              <Spinner size="lg" />
+              <span className="text-sm">Loading preview…</span>
+            </div>
+          </div>
+        )}
+
+        {previewError && (
+          <div className="flex flex-1 items-center justify-center">
+            <div className="flex flex-col items-center gap-3">
+              <FileIcon mime={mime} size="lg" />
+              <p className="text-sm font-medium text-red-400">Couldn't load preview</p>
+              <p className="text-xs text-gray-500 max-w-xs text-center">{previewError}</p>
+            </div>
+          </div>
+        )}
+
+        {textContent && highlightCodeFn && highlightLang && !isLoadingPreview && !previewError && (
+          <div
+            className="flex-1 min-h-0 overflow-auto tv-code-scroll"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <CodePreviewLines
+              code={textContent}
+              lang={highlightLang}
+              highlight={highlightCodeFn}
+            />
+          </div>
+        )}
+
+        <ContextMenuDropdown />
+      </div>,
+      document.body
+    )
+  }
+
   // --- FALLBACK VIEWER FOR OTHER TYPES (Audio, etc) ---
   const renderPreviewBody = () => {
     if (isLoadingPreview) {
@@ -543,5 +756,35 @@ export function FilePreview({ entry, onClose }: FilePreviewProps) {
       </div>
       <ContextMenuDropdown />
     </Modal>
+  )
+}
+
+/**
+ * Renders Prism's tokenized HTML one line at a time so line numbers can be
+ * drawn with a pure-CSS counter. The HTML is always Prism's escaped, token
+ * wrapped output (never raw file content), so this is the only safe use of
+ * dangerouslySetInnerHTML in the preview layers.
+ */
+function CodePreviewLines({
+  code,
+  lang,
+  highlight,
+}: {
+  code: string
+  lang: string
+  highlight: (code: string, lang: string) => string
+}) {
+  const html = useMemo(() => highlight(code, lang), [code, lang, highlight])
+  const lines = useMemo(() => html.split('\n'), [html])
+  return (
+    <div className="tv-code-block">
+      {lines.map((line, i) => (
+        <div
+          key={i}
+          className="tv-code-line"
+          dangerouslySetInnerHTML={{ __html: line || ' ' }}
+        />
+      ))}
+    </div>
   )
 }
