@@ -9,10 +9,7 @@
  * The default executable is auto-detected per platform from electron-builder's
  * unpacked output. On headless Linux wrap with: xvfb-run -a npm run test:smoke
  */
-// Surface the packaged Electron process' own stderr (e.g. a failed loadFile)
-// in CI logs. playwright-core reads DEBUG at import time, so set it first.
-process.env.DEBUG = process.env.DEBUG || 'pw:browser'
-const { _electron: electron } = await import('playwright-core')
+import { _electron as electron } from 'playwright-core'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
@@ -75,10 +72,6 @@ let window
 
 try {
   app = await electron.launch({ executablePath, args, env })
-  app.on('console', (msg) => {
-    console.error('[smoke] main console:', msg.type(), msg.text().slice(0, 300))
-  })
-
   window = await app.firstWindow({ timeout: 30000 })
   window.on('console', (msg) => {
     if (msg.type() === 'error') consoleErrors.push(msg.text())
@@ -86,6 +79,30 @@ try {
   window.on('pageerror', (err) => pageErrors.push(String(err)))
 
   await window.waitForLoadState('domcontentloaded')
+
+  // On Windows, Playwright can attach to the app window before Electron's
+  // initial loadFile() navigation commits, leaving a blank file:///<drive>:/
+  // page. Re-issuing the load from the main process after attach is reliable
+  // (verified on windows-2022). Wait briefly first so normal startup is untouched.
+  let setupVisible = false
+  try {
+    await window.getByText('Welcome to TeleVault').waitFor({ timeout: 8000 })
+    setupVisible = true
+  } catch {
+    console.log('[smoke] setup screen not visible after startup — reloading renderer')
+  }
+  if (!setupVisible) {
+    await app.evaluate(async (electron) => {
+      const win = electron.BrowserWindow.getAllWindows()[0]
+      if (!win) throw new Error('no app window to reload')
+      const root = electron.app.getAppPath()
+      const indexPath = root.includes('\\')
+        ? `${root}\\dist\\index.html`
+        : `${root}/dist/index.html`
+      await win.loadFile(indexPath)
+    })
+  }
+
   await window.getByText('Welcome to TeleVault').waitFor({ timeout: 30000 })
   const apiLabel = window.getByText('API ID', { exact: true }).first()
   await apiLabel.waitFor({ timeout: 10000 })
@@ -104,41 +121,6 @@ try {
   console.log('[smoke] PASS')
 } catch (err) {
   console.error('[smoke] FAIL:', err.message)
-  // Probe: does loadFile work once the window is fully up? If so, the startup
-  // call in createWindow() is being dropped on this platform.
-  if (app) {
-    try {
-      const nav = await app.evaluate(async (e) => {
-        const w = e.BrowserWindow.getAllWindows()[0]
-        if (!w) return 'no window'
-        const p = e.app.getAppPath().replace(/\//g, '\\') + '\\dist\\index.html'
-        await w.loadFile(p)
-        return w.webContents.getURL()
-      })
-      console.error('[smoke] reload-via-evaluate URL:', nav)
-    } catch (e) {
-      console.error('[smoke] reload-via-evaluate failed:', e.message)
-    }
-  }
-  // Diagnostics: show what the app actually rendered so a CI-only failure can
-  // be diagnosed from the log without needing the runner machine.
-  if (app) {
-    try {
-      const info = await app.evaluate((electron) => ({
-        appPath: electron.app.getAppPath(),
-        userData: electron.app.getPath('userData'),
-        isPackaged: electron.app.isPackaged,
-        electron: process.versions.electron,
-        windows: electron.BrowserWindow.getAllWindows().map((w) => w.webContents.getURL()),
-        // If these are 0, main-process init threw before registerAllIpc().
-        hasApiCredsHandler: electron.ipcMain.listenerCount('system:hasApiCredentials'),
-        ipcHandlerCount: electron.ipcMain.eventNames().length,
-      }))
-      console.error('[smoke] main-process info:', JSON.stringify(info))
-    } catch (e) {
-      console.error('[smoke] main-process info: <unavailable>', e.message)
-    }
-  }
   if (window) {
     try {
       console.error('[smoke] window URL:', window.url())
