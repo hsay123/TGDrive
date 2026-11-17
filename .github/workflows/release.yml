@@ -120,7 +120,9 @@ jobs:
 
   build-mac-arm64:
     name: Build macOS arm64 (Apple Silicon)
-    runs-on: macos-latest # arm64 (macos-26)
+    # macos-15 is arm64 and has more reliable capacity than macos-latest
+    # (macos-26); four dry-run attempts on the latter were cancelled in queue.
+    runs-on: macos-15
     timeout-minutes: 45
     defaults:
       run:
