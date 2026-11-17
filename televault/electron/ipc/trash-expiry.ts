@@ -1,58 +1,81 @@
-import { getExpiredTrashEntries } from '../../core/db/trash.db'
-import { channelsReady } from '../../core/telegram/channels'
-import { permanentlyDeleteFile } from './files.ipc'
+import { getExpiredTrashEntries, removeTrashEntryRecords } from '../../core/db/trash.db'
+import type { TrashEntry } from '../../core/db/schema'
 
-// Cleanup sweep cadence. This involves real Telegram API calls (message
-// deletion), so keep it to once a day — it must not add rate-limit pressure.
+// Cleanup cadence: local DB references only (no Telegram API calls), so a
+// once-a-day sweep is ample. This is consistent with the UI wording — removing
+// a file from TeleVault leaves its data in Telegram until the user deletes the
+// messages there. The sweep only drops the expired trash rows and their local
+// chunk/version references.
 const SWEEP_INTERVAL_MS = 24 * 60 * 60 * 1000
 
-// Wait after startup so the Telegram client and channels have a chance to
-// initialize before the first sweep runs.
+// Wait after startup so the DB and IPC surface are fully initialized.
 const STARTUP_SWEEP_DELAY_MS = 10_000
+
+export interface TrashExpiryDeps {
+  /** Returns trash rows whose 30-day retention window has elapsed. */
+  getExpired: (now: number) => TrashEntry[]
+  /** Drops only local references for one expired row. Never calls Telegram. */
+  purgeLocal: (entry: TrashEntry) => void
+  log?: (message: string) => void
+  logError?: (message: string, error: unknown) => void
+}
+
+function defaultDeps(): TrashExpiryDeps {
+  return {
+    getExpired: getExpiredTrashEntries,
+    purgeLocal: removeTrashEntryRecords,
+    log: (message) => console.log(message),
+    logError: (message, error) => console.error(message, error),
+  }
+}
+
+/**
+ * One expiry pass, dependency-injected so it can be unit-tested without native
+ * modules. Each row is purged independently: a single failure is retained for
+ * the next sweep instead of aborting the rest.
+ */
+export async function runTrashExpirySweepOnce(
+  deps: TrashExpiryDeps = defaultDeps(),
+  now: number = Date.now()
+): Promise<{ purged: number; failed: number }> {
+  const expired = deps.getExpired(now)
+  if (expired.length === 0) return { purged: 0, failed: 0 }
+
+  deps.log?.(`[trash-expiry] Sweep start: ${expired.length} expired item(s)`)
+
+  let purged = 0
+  let failed = 0
+  for (const entry of expired) {
+    try {
+      // Local references only — never a Telegram message delete. Per the
+      // "Remove from TeleVault" wording, the file data stays in Telegram until
+      // the user deletes the messages there.
+      deps.purgeLocal(entry)
+      purged++
+    } catch (error) {
+      failed++
+      deps.logError?.(
+        `[trash-expiry] Failed to purge ${entry.id} (${entry.original_path}) — retained for retry:`,
+        error
+      )
+    }
+  }
+
+  deps.log?.(`[trash-expiry] Sweep complete: ${purged} purged, ${failed} failed (retained)`)
+  return { purged, failed }
+}
 
 let trashExpiryInterval: ReturnType<typeof setInterval> | null = null
 let startupSweepTimer: ReturnType<typeof setTimeout> | null = null
-
-// Each expired row is deleted independently (Telegram-first) and failures are
-// retried on the next sweep, so a single failure never aborts the whole sweep.
 let sweepInProgress = false
 
-async function runTrashExpirySweep(): Promise<void> {
+async function sweep(): Promise<void> {
   if (sweepInProgress) return
   sweepInProgress = true
-
   try {
-    if (!channelsReady().ready) {
-      console.log('[trash-expiry] Sweep skipped — Telegram channels not initialized yet')
-      return
-    }
-
-    const expired = getExpiredTrashEntries()
-    if (expired.length === 0) {
-      return
-    }
-
-    let purged = 0
-    let failed = 0
-    console.log(`[trash-expiry] Sweep start: ${expired.length} expired item(s)`)
-
-    for (const entry of expired) {
-      try {
-        // Same Telegram-delete-first path as the UI's "Delete permanently".
-        await permanentlyDeleteFile(entry.id)
-        purged++
-      } catch (err) {
-        failed++
-        // Leave this row alone so the next sweep retries it. Do not let one
-        // failure abort the remaining items.
-        console.error(
-          `[trash-expiry] Failed to purge ${entry.id} (${entry.original_path}) — retained for retry:`,
-          err
-        )
-      }
-    }
-
-    console.log(`[trash-expiry] Sweep complete: ${purged} purged, ${failed} failed (retained)`)
+    await runTrashExpirySweepOnce()
+  } catch (error) {
+    console.error('[trash-expiry] Sweep error:', error)
   } finally {
     sweepInProgress = false
   }
@@ -72,16 +95,12 @@ function clearTrashExpiry(): void {
 function setupTrashExpiryInterval(): void {
   clearTrashExpiry()
   trashExpiryInterval = setInterval(() => {
-    runTrashExpirySweep().catch((err) =>
-      console.error('[trash-expiry] Interval sweep error:', err)
-    )
+    sweep()
   }, SWEEP_INTERVAL_MS)
 
   // Once on app startup, shortly after the IPC surface is registered.
   startupSweepTimer = setTimeout(() => {
-    runTrashExpirySweep().catch((err) =>
-      console.error('[trash-expiry] Startup sweep error:', err)
-    )
+    sweep()
   }, STARTUP_SWEEP_DELAY_MS)
 }
 
@@ -100,5 +119,5 @@ export function stopTrashExpiry(): void {
 
 /** Exposed for tests and manual runs. */
 export function triggerTrashExpirySweep(): Promise<void> {
-  return runTrashExpirySweep()
+  return sweep()
 }
