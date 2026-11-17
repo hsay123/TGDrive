@@ -87,6 +87,9 @@ jobs:
     defaults:
       run:
         working-directory: televault
+    env:
+      MAC_CERT_P12: ${{ secrets.MAC_CERT_P12 }}
+      MAC_CERT_PASSWORD: ${{ secrets.MAC_CERT_PASSWORD }}
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
@@ -100,11 +103,15 @@ jobs:
         with:
           python-version: '3.11'
       - run: npm ci
+      # Only export CSC_* when a certificate is configured. An empty CSC_LINK
+      # makes electron-builder treat the project directory as a certificate file.
+      - name: Export macOS signing secrets when configured
+        if: ${{ env.MAC_CERT_P12 != '' }}
+        run: |
+          echo "CSC_LINK=${MAC_CERT_P12}" >> "$GITHUB_ENV"
+          echo "CSC_KEY_PASSWORD=${MAC_CERT_PASSWORD}" >> "$GITHUB_ENV"
       - name: Build x64 DMG
         run: npm run build:prepare && npx electron-builder --mac --x64 --publish never
-        env:
-          CSC_LINK: ${{ secrets.MAC_CERT_P12 }}
-          CSC_KEY_PASSWORD: ${{ secrets.MAC_CERT_PASSWORD }}
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: release-mac-x64
@@ -119,8 +126,8 @@ jobs:
       run:
         working-directory: televault
     env:
-      CSC_LINK: ${{ secrets.MAC_CERT_P12 }}
-      CSC_KEY_PASSWORD: ${{ secrets.MAC_CERT_PASSWORD }}
+      MAC_CERT_P12: ${{ secrets.MAC_CERT_P12 }}
+      MAC_CERT_PASSWORD: ${{ secrets.MAC_CERT_PASSWORD }}
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
@@ -134,6 +141,11 @@ jobs:
         with:
           python-version: '3.11'
       - run: npm ci
+      - name: Export macOS signing secrets when configured
+        if: ${{ env.MAC_CERT_P12 != '' }}
+        run: |
+          echo "CSC_LINK=${MAC_CERT_P12}" >> "$GITHUB_ENV"
+          echo "CSC_KEY_PASSWORD=${MAC_CERT_PASSWORD}" >> "$GITHUB_ENV"
       - name: Build arm64 app
         run: npm run build:prepare && npx electron-builder --mac --arm64 --dir --publish never
       # Without a Developer ID, electron-builder leaves the bundle unsigned;
@@ -142,7 +154,7 @@ jobs:
       # signature gives a valid seal and the standard notarization warning
       # instead. Skip this when a real signing certificate is configured.
       - name: Ad-hoc sign arm64 app (no Developer ID configured)
-        if: ${{ env.CSC_LINK == '' }}
+        if: ${{ env.MAC_CERT_P12 == '' }}
         run: |
           set -euo pipefail
           codesign --force --deep --sign - --options runtime --timestamp=none \
