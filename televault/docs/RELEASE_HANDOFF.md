@@ -23,19 +23,19 @@
 
 | Check | Result | Evidence |
 |---|---|---|
-| `build.yml` — four-runner CI | **PASS, all 4 runners** | Run `44133149419` (PR #9) |
-| `ubuntu-latest` | PASS | Run `44133149419` |
-| `windows-2022` | PASS | Run `44133149419` |
-| `macos-latest` (arm64) | PASS | Run `44133149419` |
-| `macos-15-intel` (x64) | PASS | Run `44133149419` |
+| `build.yml` — four-runner CI | **PASS, all 4 runners** | Run `44147531603` |
+| `ubuntu-latest` | PASS | Run `44147531603` |
+| `windows-2022` | PASS | Run `44147531603` |
+| `macos-latest` (arm64) | PASS | Run `44147531603` |
+| `macos-15-intel` (x64) | PASS | Run `44147531603` |
 | Advisory / `continue-on-error` steps | **NONE** | No `continue-on-error` in either root workflow |
 | Actions pinned to commit SHAs | YES | All `uses:` entries in `.github/workflows/*.yml` |
-| Unit tests | 24/24 PASS | Established in PR #8 run `44124711233`; unchanged by PR #9 |
-| Windows installed-exe smoke | PASS (`RENDERER_READY`, `[smoke] PASS`) | Run `44124711233`; smoke step unchanged by PR #9 |
-| Release workflow dry run | **PASS** for Windows, Linux and macOS x64; macOS arm64 job was cancelled three times while queued on a capacity-constrained runner, so a fresh dry run is in progress. No release was touched. | Run `44133150608` and rerun `44141780992`, `dry_run = true` |
+| Unit tests | PASS | Run `44147531603` (all four runners) |
+| Windows installed-exe smoke | PASS (`RENDERER_READY`, `[smoke] PASS`) | Run `44147531603` |
+| Release workflow dry run | **PASS** — all four build jobs and `assemble` succeeded; no tag, release or upload touched | Run `44147538158`, `dry_run = true` |
 | Tags / releases in repo | **NONE** | `git ls-remote --tags origin`, `gh release list` |
 
-**Note on `main`:** run `44129909021` (post-merge push to `main`) was red on Windows because electron-builder 26 auto-publishes on push-to-main when `--publish` is omitted. PR #9 adds `--publish never` to that CI build step; no tag, release or upload occurred. After PR #9 is merged, the next `main` run is expected to be green.
+**Note on `main`:** an earlier post-merge `main` run was red on Windows because electron-builder 26 auto-publishes on push-to-main when `--publish` is omitted. That was fixed by adding `--publish never` to the CI build step. Both verification runs cited above are green (`44147531603` CI, `44147538158` dry run) and no tag, release or upload was created.
 
 ## 3. Final asset inventory (exact names)
 
@@ -67,6 +67,21 @@
 - `SHA256SUMS.txt` (hashes the six published installers only: Windows `.exe`, both macOS `.dmg`s, Linux `.AppImage`, `.deb`, `.rpm`)
 
 `.blockmap`, `.zip` and `latest*.yml` files are update/companion assets. They are staged into the release but intentionally excluded from `SHA256SUMS.txt`.
+
+### Website download links — the six installers only
+
+The website should link **exactly these six installer files**:
+
+| Platform | Installer |
+|---|---|
+| Windows x64 | `TeleVault-windows-x64.exe` |
+| macOS x64 / Intel | `TeleVault-macos-x64.dmg` |
+| macOS arm64 / Apple Silicon | `TeleVault-macos-arm64.dmg` |
+| Linux x64 | `TeleVault-linux-x64.AppImage` |
+| Linux x64 | `TeleVault-linux-x64.deb` |
+| Linux x64 | `TeleVault-linux-x64.rpm` |
+
+**Do not link `.zip`, `.blockmap` or `latest*.yml` from the website.** Those are update/companion assets: `.zip` is an alternate macOS archive, `.blockmap` files enable delta updates, and `latest*.yml` files are consumed by `electron-updater` — none are end-user installers. `SHA256SUMS.txt` is a verification aid for the six installers, not a download link.
 
 ## 4. Signing and platform warnings
 
@@ -120,3 +135,14 @@ Full facts for website copy: `docs/FACTS_FOR_WEBSITE.md` section 5a.
 ## 8. Scope discipline
 
 No new features, no UI redesign, no license/payment gating, no history rewrite. No security-audit details were copied into this handoff. Automated publishing remains disabled: all builds use `--publish never`, and the draft is created only by an explicit tag push with `gh release create --draft`.
+
+## 9. Known issues in this beta
+
+| Area | Issue | Detail |
+|---|---|---|
+| Encryption | Key loss is permanent | Losing the OS-keychain key makes encrypted files permanently unreadable. This beta has no recovery-key export/import; a guard blocks silent key replacement when encrypted rows exist, and the toggle is disabled when no secure key store is available. See `docs/FOLLOW_UPS.md` item 19. |
+| Delete | "Remove from TeleVault" is local-only | It removes the file from TeleVault but does **not** delete its messages in Telegram. The data stays in your Telegram until you delete the messages there. |
+| Sync | Last-writer-wins full replace | Conflicts are not resolved per item: the most recently pushed device wins entirely and can overwrite newer local metadata. A local DB backup is taken before each full replace, but conflict resolution is still needed. See `docs/FOLLOW_UPS.md` B3. |
+| Trash | 30-day purge is local-only | Expired trash rows lose their local references at startup and daily; the underlying Telegram data is intentionally left in place. |
+| Signing | Not notarized | macOS builds are ad-hoc signed but not Developer-ID signed or notarized; Windows SmartScreen and macOS Gatekeeper warnings are expected on first launch. |
+| Features | Incomplete | File version history and tags are not available yet; share links point to private Telegram channels and are not usable by non-users. |

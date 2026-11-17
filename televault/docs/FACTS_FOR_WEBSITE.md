@@ -126,6 +126,22 @@ Derived from the Electron version currently in the tree. **Verified** against th
 | Repository license is MIT | **CONFIRMED** | `LICENSE:1-3` — "MIT License / Copyright (c) 2026 TeleVault" |
 | Forked from another project (attribution required) | **NOT FOUND** | `LICENSE` has no upstream copyright; initial commit `9351a85970af` by `hsay123`; no attribution header in `README.md` |
 
+## 9. Release-hardening behaviour (key loss, delete, trash)
+
+These rows describe the behaviour after the release-hardening items land. Re-check the cited files after those branches merge; no line numbers are used here because they shift with the edits.
+
+| Website statement | Status | Evidence |
+|---|---|---|
+| Encrypted files are never silently made unreadable or re-encrypted with a replacement key | **CONFIRMED** | `core/crypto/key-guard.ts` refuses to create a key when encrypted file/trash rows exist but the keychain entry is missing, and `core/crypto/keystore.ts` reads the fingerprint without creating a key. The uploader uses `getKeyForEncryption()`. |
+| If no secure key store is available, encryption is disabled rather than using a temporary key | **CONFIRMED** | `core/crypto/key-guard.ts` reports `NO_SECURE_STORE`; `src/pages/Settings.tsx` disables the toggle and shows the explanation. No ephemeral per-launch key exists. |
+| A one-time warning explains that losing the key makes encrypted files permanently unreadable | **CONFIRMED** | `src/pages/Settings.tsx` shows the warning on first enable. **Export/import is not implemented** — tracked in `docs/FOLLOW_UPS.md` item 19. Do not claim recoverability. |
+| "Remove from TeleVault" removes the file locally but leaves its data in Telegram | **CONFIRMED** | `src/components/files/ContextMenu.tsx` uses the exact text "This removes the file from TeleVault. Its data stays in your Telegram until you delete the messages there." True Telegram message deletion is assessed but not implemented in this beta. |
+| Trash is 30 days, and expiry removes only local references | **CONFIRMED** | `files.db.ts` sets `expires_at = deleted_at + 30 days`; `electron/ipc/trash-expiry.ts` sweeps at startup and daily via `removeTrashEntryRecords()` (local rows only, no Telegram delete). Telegram data remains until the user deletes the messages. |
+
+**Safe wording:** "Removing a file from TeleVault removes it from the app; your data stays in your Telegram account until you delete the messages there."
+
+**Unsafe wording:** "deleting a file erases it from Telegram", "encrypted files can be recovered", "we escrow your key".
+
 ## Unsafe claims to avoid until code changes
 
 "All data encrypted", "zero-knowledge", "metadata privacy", "unlimited storage", "public share links", "resumable uploads", "version history", "tags", "pro plan", "1.9 GB file limit", "notarized / signed builds" (builds are currently unsigned — see `docs/RELEASE_PROCESS.md`), or "automatic updates" (updates are check-and-notify only; downloads are user-initiated).
