@@ -308,7 +308,7 @@ export function registerFilesIpc(
               err
             )
             throw new Error(
-              `Permanent delete failed: ${reason}. Nothing was removed — the item is still in Trash and will be retried. Please try again.`
+              `Remove from TeleVault failed: ${reason}. Nothing was removed — the item is still in Trash and will be retried. Please try again.`
             )
           }
         } else {
