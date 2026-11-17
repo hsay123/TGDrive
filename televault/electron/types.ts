@@ -4,8 +4,10 @@ import type { SyncStatus } from '../core/sync/puller'
 import type { VersionRow } from './ipc/files.ipc'
 import type { TrashRow } from '../core/db/trash.db'
 import type { IpcResult } from './ipc/helpers'
+import type { UpdateStatus } from './updater'
 
 export type { TGUser, VFSFile, VFSFolder, VFSEntry, SyncStatus, VersionRow, TrashRow, IpcResult }
+export type { UpdateStatus, UpdatePhase } from './updater'
 
 export interface TeleVaultAPI {
   auth: {
@@ -109,10 +111,11 @@ export interface TeleVaultAPI {
     getPersistedUser: () => IpcResult<{ user: TGUser; avatarUrl: string | null } | null>
   }
   updater: {
+    check: () => Promise<IpcResult<void>>
+    download: () => Promise<IpcResult<void>>
     install: () => Promise<IpcResult<void>>
-    onAvailable: (callback: () => void) => () => void
-    onProgress: (callback: (percent: number) => void) => () => void
-    onReady: (callback: () => void) => () => void
+    /** Subscribe to every updater transition. Returns an unsubscribe fn. */
+    onStatus: (callback: (status: UpdateStatus) => void) => () => void
   }
   reveal: {
     hasPin: () => Promise<IpcResult<boolean>>
