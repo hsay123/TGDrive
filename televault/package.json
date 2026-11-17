@@ -28,7 +28,8 @@
     "rebuild": "electron-rebuild -f -w better-sqlite3,keytar",
     "postinstall": "electron-rebuild -f -w better-sqlite3,keytar",
     "test": "node scripts/run-tests.mjs",
-    "test:smoke": "node scripts/smoke-test.mjs"
+    "test:smoke": "node scripts/smoke-test.mjs",
+    "checksums": "node scripts/generate-checksums.mjs"
   },
   "dependencies": {
     "@tanstack/react-virtual": "^3.2.0",

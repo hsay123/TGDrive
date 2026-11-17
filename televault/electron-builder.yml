@@ -22,6 +22,8 @@ extraMetadata:
   main: dist-electron/electron/main.js
 
 mac:
+  # Fixed, predictable names for the release feed: TeleVault-macos-<arch>.<ext>
+  artifactName: TeleVault-macos-${arch}.${ext}
   target:
     - dmg
     - zip
@@ -35,6 +37,9 @@ mac:
   entitlementsInherit: build/entitlements.mac.plist
 
 win:
+  # Fixed name: TeleVault-windows-x64.exe. ${arch} resolves to target-specific
+  # names (e.g. x86_64/amd64) on some builders, so use the literal x64 label.
+  artifactName: TeleVault-windows-x64.${ext}
   target:
     - nsis
   icon: build/icon.ico
@@ -49,16 +54,27 @@ nsis:
   shortcutName: TeleVault
 
 deb:
-  # keytar links against libsecret at runtime; without it the app crashes on launch.
+  # keytar links against libsecret at runtime for the encryption key.
   depends:
     - libsecret-1-0
     - libnotify4
     - libnss3
 
+rpm:
+  # RPM package names differ from Debian; libsecret is the keytar runtime dep.
+  depends:
+    - libsecret
+    - libnotify
+    - nss
+
 linux:
+  # Fixed names: TeleVault-linux-x64.{AppImage,deb,rpm}. ${arch} resolves to
+  # target-specific names (AppImage=x86_64, deb=amd64), so use a literal x64.
+  artifactName: TeleVault-linux-x64.${ext}
   target:
     - AppImage
     - deb
+    - rpm
   icon: build/icon.png
   category: Utility
   synopsis: Your Telegram account as a real cloud drive
