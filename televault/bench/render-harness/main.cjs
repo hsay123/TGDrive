@@ -11,6 +11,7 @@
  */
 const { app, BrowserWindow } = require('electron')
 const path = require('path')
+const { pathToFileURL } = require('url')
 
 app.setPath('userData', path.join(require('os').tmpdir(), `tv-render-bench-${process.pid}`))
 
@@ -35,11 +36,10 @@ async function main() {
       nodeIntegration: true,
     },
   })
+  // pathToFileURL is the only correct way to build a file URL: concatenating
+  // 'file://' with a Windows path parses the drive letter as a URL host.
   const fileUrl =
-    'file://' +
-    encodeURI(abs).replace(/[()]/g, (c) => encodeURIComponent(c)) +
-    `?n=${n}` +
-    (full ? '&full=1' : '')
+    pathToFileURL(abs).toString() + `?n=${n}` + (full ? '&full=1' : '')
   await win.loadURL(fileUrl)
   const deadline = Date.now() + TIMEOUT_MS
   for (;;) {

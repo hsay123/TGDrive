@@ -42,7 +42,11 @@ function defaultExecutable() {
   }
 }
 
-const executablePath = process.argv[2] || process.env.ELECTRON_APP || defaultExecutable()
+const executablePath =
+  process.argv[2] ||
+  process.env.TELEVAULT_SMOKE_EXE ||
+  process.env.ELECTRON_APP ||
+  defaultExecutable()
 
 if (!fs.existsSync(executablePath)) {
   console.error(`[smoke] executable not found: ${executablePath}`)
@@ -64,6 +68,16 @@ if (process.platform === 'linux') {
 }
 const args = [`--user-data-dir=${userDataRoot}`]
 if (process.platform === 'linux') args.push('--no-sandbox')
+// The main process appends diagnostics (including RENDERER_READY) here when
+// TELEVAULT_SMOKE=1. Polling the file does not depend on Playwright's target.
+const markerLogPath = path.join(userDataRoot, 'tv-smoke.log')
+const readMarkerLog = () => {
+  try {
+    return fs.readFileSync(markerLogPath, 'utf8')
+  } catch {
+    return ''
+  }
+}
 
 const consoleErrors = []
 const pageErrors = []
@@ -89,15 +103,18 @@ try {
 
   await window.waitForLoadState('domcontentloaded').catch(() => {})
 
-  // Wait up to 30s for the renderer-side readiness marker.
+  // Wait up to 30s for the renderer-side readiness marker, observed either on
+  // the main-process console or in the app's own smoke log file.
   const deadline = Date.now() + 30000
   while (!markerSeen && Date.now() < deadline) {
-    await new Promise((resolve) => setTimeout(resolve, 200))
+    if (readMarkerLog().includes('RENDERER_READY')) markerSeen = true
+    if (!markerSeen) await new Promise((resolve) => setTimeout(resolve, 200))
   }
   if (!markerSeen) {
     throw new Error('renderer-ready marker (RENDERER_READY) not seen within 30s')
   }
   console.log('[smoke] renderer-ready marker seen: RENDERER_READY')
+  console.log('[smoke] app smoke log:\n' + readMarkerLog().trimEnd())
   console.log(`[smoke] console errors: ${consoleErrors.length}; page errors: ${pageErrors.length}`)
   for (const e of consoleErrors.slice(0, 5)) console.log(`  console: ${e.slice(0, 200)}`)
   for (const e of pageErrors.slice(0, 5)) console.log(`  page:    ${e.slice(0, 200)}`)
@@ -108,6 +125,7 @@ try {
   console.log('[smoke] PASS')
 } catch (err) {
   console.error('[smoke] FAIL:', err.message)
+  console.error('[smoke] app smoke log:\n' + (readMarkerLog().trimEnd() || '(empty — app never wrote diagnostics)'))
   console.error(`[smoke] main-process log (${mainLogs.length} lines):`)
   for (const line of mainLogs) console.error('  main:', line.slice(0, 500))
   // Diagnostics so a CI-only failure can be triaged from the log without the

@@ -3,6 +3,7 @@ import { useUploadStore } from '../store/upload.store'
 import { useFilesStore } from '../store/files.store'
 import { useTreeStore } from '../store/tree.store'
 import { extractVideoFrame } from '../utils/videoThumbnail'
+import { tvFileUrl } from '../lib/tvfile'
 import toast from 'react-hot-toast'
 
 function formatBytes(bytes: number): string {
@@ -28,7 +29,7 @@ async function generateUploadThumbnail(uploaded: {
     const dot = uploaded.name.lastIndexOf('.')
     if (dot < 0) return
     const ext = uploaded.name.slice(dot)
-    const videoUrl = `tvfile://preview-cache/${uploaded.id}-partial${ext}`
+    const videoUrl = tvFileUrl('preview-cache', `${uploaded.id}-partial${ext}`)
     const dataUrl = await extractVideoFrame(videoUrl)
     if (!dataUrl) return
     await window.televault.files.saveThumbnail(uploaded.id, dataUrl)

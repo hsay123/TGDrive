@@ -4,7 +4,7 @@ import { Modal } from '../shared/Modal'
 import { Spinner } from '../shared/Spinner'
 import { FileIcon } from './FileIcon'
 import { formatFileSize } from '../../lib/utils'
-import { toPreviewUrl } from '../../lib/tvfile'
+import { toPreviewUrl, tvFileUrl } from '../../lib/tvfile'
 import {
   getTextPreviewMode,
   TEXT_PREVIEW_MAX_BYTES,
@@ -338,7 +338,7 @@ export function FilePreview({ entry, onClose }: FilePreviewProps) {
             }}>
               {entry.thumbnailPath && (
                 <img
-                  src={`tvfile://thumbnails/${entry.thumbnailPath.split(/[/\\]/).pop()}`}
+                  src={tvFileUrl('thumbnails', entry.thumbnailPath)}
                   style={{
                     position: 'absolute', inset: 0,
                     width: '100%', height: '100%',

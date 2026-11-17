@@ -1,3 +1,5 @@
+import { tvFileUrl } from '../lib/tvfile'
+
 /**
  * Downloads a video to temp cache and extracts a frame.
  * Saves result to thumbnails dir and updates DB.
@@ -19,8 +21,7 @@ export async function generateVideoThumbFromFile(
     console.log('[thumb] downloaded to:', result.data)
 
     // 2. Build tvfile:// URL for the cached video
-    const filename = result.data.split(/[/\\]/).pop()
-    const videoUrl = `tvfile://preview-cache/${filename}`
+    const videoUrl = tvFileUrl('preview-cache', result.data)
     console.log('[thumb] video URL:', videoUrl)
 
     // 3. Extract frame using offscreen video + canvas

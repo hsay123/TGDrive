@@ -4,7 +4,7 @@ import { Folder, Lock, Star } from 'lucide-react'
 import toast from 'react-hot-toast'
 import type { VFSEntry, VFSFile } from '../../types'
 import { FileIcon } from './FileIcon'
-import { toThumbnailUrl } from '../../lib/tvfile'
+import { toThumbnailUrl, tvFileUrl } from '../../lib/tvfile'
 import { useFilesStore } from '../../store/files.store'
 import { extractVideoFrame } from '../../utils/videoThumbnail'
 
@@ -186,7 +186,7 @@ export const FileCard = memo(
         return
       }
 
-      const videoUrl = `tvfile://preview-cache/${filename}`
+      const videoUrl = tvFileUrl('preview-cache', partialResult.data)
       const dataUrl = await extractVideoFrame(videoUrl, 1.5)
 
       if (!dataUrl) {

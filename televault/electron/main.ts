@@ -1,7 +1,7 @@
 import { app, BrowserWindow, ipcMain, dialog, shell, protocol, net, session } from 'electron'
 import path from 'path'
-import { pathToFileURL } from 'url'
 import { config } from 'dotenv'
+import { resolveRendererHtml, toFileUrl } from './app-urls'
 import fsSync from 'fs'
 import { getDb } from '../core/db/db'
 import { ensureRootFolder } from '../core/fs/vfs'
@@ -36,6 +36,29 @@ protocol.registerSchemesAsPrivileged([
 
 const isDev = !app.isPackaged
 let mainWindow: BrowserWindow | null = null
+
+/** Smoke-only diagnostics. Writes to the isolated userData dir as well as stdout
+ * so a failure can be triaged even when Playwright's Page target is stale. */
+function smokeLog(line: string): void {
+  if (process.env.TELEVAULT_SMOKE !== '1') return
+  console.log(`[smoke] ${line}`)
+  try {
+    fsSync.appendFileSync(
+      path.join(app.getPath('userData'), 'tv-smoke.log'),
+      `${line}\n`
+    )
+  } catch {
+    /* diagnostics are best-effort */
+  }
+}
+
+function currentUrl(): string {
+  try {
+    return mainWindow?.webContents.getURL() ?? ''
+  } catch {
+    return ''
+  }
+}
 
 function getMainWindow(): BrowserWindow | null {
   return mainWindow
@@ -75,12 +98,31 @@ function createWindow(): void {
     shell.openExternal(url)
   })
 
+  mainWindow.webContents.on('did-finish-load', () =>
+    smokeLog(`did-finish-load ${currentUrl()}`)
+  )
+  mainWindow.webContents.on('dom-ready', () =>
+    smokeLog(`dom-ready ${currentUrl()}`)
+  )
+  mainWindow.webContents.on(
+    'did-fail-load',
+    (_event, code, description, url) =>
+      smokeLog(`did-fail-load code=${code} ${description} ${url}`)
+  )
+
   if (isDev) {
     const devUrl = process.env.VITE_DEV_SERVER_URL ?? 'http://localhost:5173'
+    smokeLog(`LOAD mode=dev url=${devUrl}`)
     mainWindow.loadURL(devUrl)
     mainWindow.webContents.openDevTools({ mode: 'detach' })
   } else {
-    mainWindow.loadFile(path.join(__dirname, '../../dist/index.html'))
+    const htmlPath = resolveRendererHtml(__dirname)
+    const rendererUrl = toFileUrl(htmlPath)
+    smokeLog(
+      `LOAD mode=packaged appPath=${app.getAppPath()} dirname=${__dirname} ` +
+        `html=${htmlPath} exists=${fsSync.existsSync(htmlPath)} url=${rendererUrl}`
+    )
+    mainWindow.loadURL(rendererUrl)
   }
 
   initUpdater(mainWindow)
@@ -131,7 +173,7 @@ function registerSystemIpc(): void {
   // Smoke-only readiness marker: the first-run screen calls this once mounted.
   // No-op unless TELEVAULT_SMOKE=1, so normal launches are unchanged.
   ipcMain.on('smoke:rendererReady', () => {
-    if (process.env.TELEVAULT_SMOKE === '1') console.log('[smoke] RENDERER_READY')
+    smokeLog('RENDERER_READY')
   })
 
   ipcMain.handle('updater:install', async () =>
@@ -184,7 +226,7 @@ app.whenReady().then(() => {
       return new Response('Forbidden', { status: 403 })
     }
 
-    return net.fetch(pathToFileURL(resolvedPath).toString())
+    return net.fetch(toFileUrl(resolvedPath))
   })
 
   const csp = isDev

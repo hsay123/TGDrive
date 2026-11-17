@@ -2,6 +2,7 @@ import { ipcMain, app } from 'electron'
 import path from 'path'
 import { getSetting } from '../../core/telegram/client'
 import { ipcResult } from './helpers'
+import { toTvFileUrl } from '../app-urls'
 import fs from 'fs/promises'
 
 export function registerSystemAvatarIpc() {
@@ -15,8 +16,7 @@ export function registerSystemAvatarIpc() {
 
         // Convert absolute path to tvfile:// URL using existing protocol
         // tvfile://avatars/<filename> maps to <userData>/avatars/<filename>
-        const filename = path.basename(avatarPath)
-        return `tvfile://avatars/${filename}`
+        return toTvFileUrl('avatars', avatarPath)
       })
   )
 
@@ -43,9 +43,7 @@ export function registerSystemAvatarIpc() {
         return
       }
 
-      const avatarUrl = avatarPath
-        ? `tvfile://avatars/${path.basename(avatarPath)}`
-        : null
+      const avatarUrl = avatarPath ? toTvFileUrl('avatars', avatarPath) : null
       event.returnValue = { success: true, data: { user, avatarUrl } }
     } catch (err) {
       event.returnValue = {
@@ -87,8 +85,7 @@ export function registerSystemAvatarIpc() {
         await fs.rename(tempPath, avatarPath)
         setSetting('avatar_path', avatarPath)
 
-        const filename = path.basename(avatarPath)
-        return `tvfile://avatars/${filename}`
+        return toTvFileUrl('avatars', avatarPath)
       })
   )
 }

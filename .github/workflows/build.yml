@@ -73,8 +73,31 @@ jobs:
       - name: Build unpacked app
         run: npm run build:dir
 
-      - name: Packaged-app smoke test
+      - name: Build Windows NSIS installer
+        if: runner.os == 'Windows'
+        run: npx electron-builder --win --x64
+
+      - name: Packaged-app smoke test (unpacked)
+        if: runner.os != 'Windows'
         run: ${{ matrix.smoke }}
+
+      # Users run the installed app, not win-unpacked. Install NSIS silently
+      # into a path WITH A SPACE to exercise Windows path handling too.
+      - name: Install and smoke-test the Windows installer
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $installer = (Resolve-Path 'release/TeleVault-windows-x64.exe').Path
+          $installDir = Join-Path $env:RUNNER_TEMP 'TeleVault Smoke Install'
+          if (Test-Path $installDir) { Remove-Item -Recurse -Force $installDir }
+          # NSIS silent flags: /S first, /D=<dir> last and unquoted.
+          $proc = Start-Process -FilePath $installer -ArgumentList @('/S', "/D=$installDir") -Wait -PassThru
+          if ($proc.ExitCode -ne 0) { throw "NSIS installer exited $($proc.ExitCode)" }
+          $installedExe = Join-Path $installDir 'TeleVault.exe'
+          if (-not (Test-Path $installedExe)) { throw "Installed app not found: $installedExe" }
+          Write-Host "Smoke-testing installed exe: $installedExe"
+          $env:TELEVAULT_SMOKE_EXE = $installedExe
+          npm run test:smoke
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
