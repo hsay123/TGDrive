@@ -10,7 +10,7 @@ import { registerFilesIpc } from './ipc/files.ipc'
 import { registerFoldersIpc } from './ipc/folders.ipc'
 import { registerSyncIpc } from './ipc/sync.ipc'
 import { registerSettingsIpc } from './ipc/settings.ipc'
-import { registerLicenseIpc } from './ipc/license.ipc'
+import { registerSetupIpc } from './ipc/setup.ipc'
 import { initUpdater, installUpdate, registerUpdaterIpc } from './updater'
 import { ipcResult } from './ipc/helpers'
 import { registerSystemAvatarIpc } from './ipc/system.ipc'
@@ -139,7 +139,7 @@ function registerAllIpc(): void {
   registerFoldersIpc(ipcMain)
   registerSyncIpc(ipcMain)
   registerSettingsIpc(ipcMain)
-  registerLicenseIpc(ipcMain)
+  registerSetupIpc(ipcMain)
   registerSystemIpc()
   registerSystemAvatarIpc()
   registerRevealIpc(ipcMain)
