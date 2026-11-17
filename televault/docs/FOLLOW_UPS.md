@@ -91,6 +91,13 @@ no UI redesign. Each item below needs its own issue, test plan and commit.
     `TeleVault.exe` with `TELEVAULT_SMOKE=1` (PR #6). Diagnostics are gated on that
     variable and write `tv-smoke.log`; with it unset there is no behaviour
     change. Do not reintroduce an advisory/`continue-on-error` step.
+19. **Encryption key export / import (recovery key).** The one-time enable warning now
+    explains that losing the key makes encrypted files permanently unreadable, but this
+    build only implements the guard (no silent key regeneration when encrypted rows exist,
+    no ephemeral key when no keyring is available). Exporting a wrapped recovery key and
+    importing it into a fresh install still needs a separate design: secret format, key
+    derivation, file picker/validation, partial-restore behaviour, and tests. Do not claim
+    recoverability in website copy until it exists.
 
 ## Deferred launch blockers (IDs only)
 
@@ -99,7 +106,7 @@ status index, not a copy of the audit.
 
 | ID | Short label | Status |
 |---|---|---|
-| B1 | Encryption key has no recovery path | Open — separate project |
+| B1 | Encryption key has no recovery path | Guard + warning added; export/import open (item 19) |
 | B2 | Payment / license activation | Accepted out of scope (Gate 1: free and open source) |
 | B3 | Last-writer-wins full-replace sync | Open — data integrity |
 | B4 | Permanent delete leaves Telegram data | Open |

@@ -4,12 +4,26 @@ import { getSecret, setSecret, deleteSecret } from './secure-store'
 const SERVICE = 'televault'
 const ACCOUNT = 'encryption-key'
 
-export async function getEncryptionKey(): Promise<Buffer> {
+/** Read the key without ever creating one. Used by guards and UI status. */
+export async function getExistingEncryptionKey(): Promise<Buffer | null> {
   try {
     const existing = await getSecret(SERVICE, ACCOUNT)
-    if (existing) {
-      return Buffer.from(existing, 'hex')
-    }
+    return existing ? Buffer.from(existing, 'hex') : null
+  } catch (error) {
+    console.error('[keystore] getExistingEncryptionKey error:', error)
+    throw error
+  }
+}
+
+/**
+ * Create a key only for the first encrypted upload. All other callers must use
+ * `getExistingEncryptionKey()` or the key-guard so a lost key is never replaced
+ * silently.
+ */
+export async function getEncryptionKey(): Promise<Buffer> {
+  try {
+    const existing = await getExistingEncryptionKey()
+    if (existing) return existing
 
     const newKey = crypto.randomBytes(32)
     await setSecret(SERVICE, ACCOUNT, newKey.toString('hex'))
@@ -43,8 +57,9 @@ export async function hasEncryptionKey(): Promise<boolean> {
 
 export async function getKeyFingerprint(): Promise<string> {
   try {
-    const key = await getEncryptionKey()
-    return key.subarray(0, 8).toString('hex').toUpperCase()
+    // Reading settings must not create a key. An empty string means "no key yet".
+    const key = await getExistingEncryptionKey()
+    return key ? key.subarray(0, 8).toString('hex').toUpperCase() : ''
   } catch (error) {
     console.error('[keystore] getKeyFingerprint error:', error)
     throw error

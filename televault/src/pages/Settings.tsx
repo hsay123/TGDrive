@@ -20,6 +20,17 @@ function formatBytes(bytes: number): string {
 
 type Tab = 'account' | 'storage' | 'encryption' | 'sync'
 
+interface EncryptionStatus {
+  storeAvailable: boolean
+  hasEncryptedRecords: boolean
+  hasKey: boolean
+  canEnable: boolean
+  blockedReason: string | null
+  message: string | null
+}
+
+const KEY_WARNING_KEY = 'tv-encryption-warning-seen'
+
 const TABS: { id: Tab; label: string }[] = [
   { id: 'account', label: 'Account' },
   { id: 'storage', label: 'Storage' },
@@ -38,6 +49,7 @@ export default function Settings() {
   const [autoSync, setAutoSync] = useState('0')
   const [version, setVersion] = useState('0.1.0')
   const [fingerprint, setFingerprint] = useState('')
+  const [encryptionStatus, setEncryptionStatus] = useState<EncryptionStatus | null>(null)
   const [isLoggingOut, setIsLoggingOut] = useState(false)
   const [isBackfilling, setIsBackfilling] = useState(false)
   const [maskedApiId, setMaskedApiId] = useState<string | null>(null)
@@ -52,6 +64,14 @@ export default function Settings() {
     })
     window.televault.settings.getKeyFingerprint().then((r) => {
       if (r.success && r.data) setFingerprint(r.data)
+    })
+    window.televault.settings.encryptionStatus().then((r) => {
+      if (r.success && r.data) {
+        setEncryptionStatus(r.data)
+        if (!r.data.canEnable && r.data.message) {
+          window.alert(r.data.message)
+        }
+      }
     })
     window.televault.system.getAppVersion().then((r) => {
       if (r.success && r.data) setVersion(r.data)
@@ -80,7 +100,22 @@ export default function Settings() {
   }, [])
 
   const handleToggleEncryption = async () => {
+    if (encryptionStatus && !encryptionStatus.canEnable) {
+      window.alert(encryptionStatus.message ?? 'Encryption is unavailable on this device.')
+      return
+    }
+
     const next = !encryptionEnabled
+    if (next && !encryptionEnabled && localStorage.getItem(KEY_WARNING_KEY) !== '1') {
+      const confirmed = window.confirm(
+        'If you lose this encryption key, your encrypted files will be permanently unreadable. ' +
+        'TeleVault cannot recover it. Export/import of a recovery key is not available in this ' +
+        'build (tracked in docs/FOLLOW_UPS.md). Continue enabling encryption?'
+      )
+      if (!confirmed) return
+      localStorage.setItem(KEY_WARNING_KEY, '1')
+    }
+
     const result = await window.televault.settings.set('encryption_enabled', next ? '1' : '0')
     if (result.success) {
       setEncryptionEnabled(next)
@@ -347,9 +382,13 @@ export default function Settings() {
                 </div>
                 <button
                   onClick={handleToggleEncryption}
+                  disabled={!!encryptionStatus && !encryptionStatus.canEnable}
+                  aria-disabled={!!encryptionStatus && !encryptionStatus.canEnable}
+                  title={encryptionStatus?.message ?? undefined}
                   className={clsx(
                     'relative h-6 w-11 rounded-full transition-colors duration-200',
-                    encryptionEnabled ? 'bg-violet-600' : 'bg-gray-700'
+                    encryptionEnabled ? 'bg-violet-600' : 'bg-gray-700',
+                    encryptionStatus && !encryptionStatus.canEnable && 'cursor-not-allowed opacity-50'
                   )}
                 >
                   <span
@@ -360,6 +399,15 @@ export default function Settings() {
                   />
                 </button>
               </div>
+
+              {encryptionStatus && !encryptionStatus.canEnable && encryptionStatus.message && (
+                <div className="rounded-lg border border-red-800/30 bg-red-900/10 p-3">
+                  <p className="text-xs text-red-300">{encryptionStatus.message}</p>
+                  <p className="mt-1 text-xs text-gray-500">
+                    TeleVault will not create a replacement key or re-encrypt existing files.
+                  </p>
+                </div>
+              )}
 
               {fingerprint && (
                 <div className="rounded-lg border border-gray-800 bg-gray-800/50 p-3">

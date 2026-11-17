@@ -5,6 +5,12 @@ import { getChunksByFileId } from './chunks.db'
 
 const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000
 
+/** True when any live file row records that its contents were encrypted. */
+export function hasEncryptedFileRecords(): boolean {
+  const db = getDb()
+  return !!db.prepare('SELECT 1 FROM files WHERE is_encrypted = 1 LIMIT 1').get()
+}
+
 export function createFile(data: Omit<File, 'id'> & { id?: string }): File {
   const db = getDb()
   const { id: providedId, ...rest } = data
