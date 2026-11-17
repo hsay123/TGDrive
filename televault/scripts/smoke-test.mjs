@@ -72,6 +72,9 @@ let window
 
 try {
   app = await electron.launch({ executablePath, args, env })
+  app.on('console', (msg) => {
+    console.error('[smoke] main console:', msg.type(), msg.text().slice(0, 300))
+  })
 
   window = await app.firstWindow({ timeout: 30000 })
   window.on('console', (msg) => {
@@ -108,6 +111,9 @@ try {
         isPackaged: electron.app.isPackaged,
         electron: process.versions.electron,
         windows: electron.BrowserWindow.getAllWindows().map((w) => w.webContents.getURL()),
+        // If these are 0, main-process init threw before registerAllIpc().
+        hasApiCredsHandler: electron.ipcMain.listenerCount('system:hasApiCredentials'),
+        ipcHandlerCount: electron.ipcMain.eventNames().length,
       }))
       console.error('[smoke] main-process info:', JSON.stringify(info))
     } catch (e) {
