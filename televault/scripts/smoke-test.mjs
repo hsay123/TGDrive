@@ -73,63 +73,17 @@ let window
 try {
   app = await electron.launch({ executablePath, args, env })
   window = await app.firstWindow({ timeout: 30000 })
-  // Capture renderer-side failures in the main process global so they survive
-  // even when Playwright's Page target is stale on Windows.
-  await app.evaluate((electron) => {
-    const win = electron.BrowserWindow.getAllWindows()[0]
-    if (!win) return
-    globalThis.__smokeLogs = []
-    win.webContents.on('console-message', (_ev, level, message) => {
-      globalThis.__smokeLogs.push(`console:${level}:${message}`)
-    })
-    win.webContents.on('did-fail-load', (_ev, code, desc, url) => {
-      globalThis.__smokeLogs.push(`did-fail-load:${code}:${desc}:${url}`)
-    })
-  }).catch(() => {})
   window.on('console', (msg) => {
     if (msg.type() === 'error') consoleErrors.push(msg.text())
   })
   window.on('pageerror', (err) => pageErrors.push(String(err)))
 
   await window.waitForLoadState('domcontentloaded')
-
-  // Read the renderer DOM through Electron's own webContents rather than
-  // Playwright's locator: on windows-2022 the initial loadFile() navigation can
-  // be dropped while Playwright attaches, leaving a blank file:///<drive>:/
-  // page. Re-issuing the load after attach works; retry for a bounded period
-  // and assert against the real renderer text on every platform.
-  const deadline = Date.now() + 60000
-  let lastReload = 0
-  let bodyText = ''
-  const reloadRenderer = async () => {
-    await app.evaluate(async (electron) => {
-      const win = electron.BrowserWindow.getAllWindows()[0]
-      if (!win) throw new Error('no app window to reload')
-      const root = electron.app.getAppPath()
-      const indexPath = root.includes('\\')
-        ? `${root}\\dist\\index.html`
-        : `${root}/dist/index.html`
-      await win.loadFile(indexPath)
-    })
-  }
-  while (Date.now() < deadline) {
-    bodyText = await app
-      .evaluate(async (electron) => {
-        const win = electron.BrowserWindow.getAllWindows()[0]
-        if (!win) return ''
-        return String(await win.webContents.executeJavaScript('document.body.innerText', true))
-      })
-      .catch(() => '')
-    if (bodyText.includes('Welcome to TeleVault') && bodyText.includes('API ID')) break
-    if (Date.now() - lastReload >= 8000) {
-      console.log('[smoke] setup screen not rendered — reloading packaged renderer')
-      await reloadRenderer().catch(() => {})
-      lastReload = Date.now()
-    }
-    await new Promise((resolve) => setTimeout(resolve, 2000))
-  }
-  if (!bodyText.includes('Welcome to TeleVault') || !bodyText.includes('API ID')) {
-    throw new Error('first-run /setup screen did not render in the packaged app')
+  await window.getByText('Welcome to TeleVault').waitFor({ timeout: 30000 })
+  const apiLabel = window.getByText('API ID', { exact: true }).first()
+  await apiLabel.waitFor({ timeout: 10000 })
+  if (!(await apiLabel.isVisible())) {
+    throw new Error('API ID label is not visible on the setup screen')
   }
 
   console.log('[smoke] first-run /setup screen rendered ("Welcome to TeleVault", "API ID")')
@@ -143,46 +97,27 @@ try {
   console.log('[smoke] PASS')
 } catch (err) {
   console.error('[smoke] FAIL:', err.message)
+  // Diagnostics so a CI-only failure can be triaged from the log without the
+  // runner machine. Read the real Electron window too — Playwright's Page
+  // target can be stale on Windows.
   if (app) {
-    try {
-      const logs = await app.evaluate(() => globalThis.__smokeLogs || [])
-      console.error('[smoke] renderer logs:', JSON.stringify(logs.slice(-20)))
-    } catch {
-      /* ignore */
-    }
     try {
       const dom = await app.evaluate(async (electron) => {
         const win = electron.BrowserWindow.getAllWindows()[0]
         if (!win) return { error: 'no app window' }
         const text = await win.webContents.executeJavaScript('document.body.innerText', true)
-        return {
-          url: win.webContents.getURL(),
-          title: win.webContents.getTitle(),
-          text: String(text).slice(0, 800),
-          playwrightWindows: undefined,
-        }
+        return { url: win.webContents.getURL(), text: String(text).slice(0, 800) }
       })
       console.error('[smoke] app window DOM:', JSON.stringify(dom))
-    } catch (e) {
-      console.error('[smoke] app window DOM: <unavailable>', e.message)
-    }
-    try {
-      console.error('[smoke] playwright windows:', app.windows().map((w) => w.url()))
     } catch {
       /* ignore */
     }
   }
   if (window) {
     try {
-      console.error('[smoke] window URL:', window.url())
+      console.error('[smoke] playwright window URL:', window.url())
     } catch {
       /* window may already be closed */
-    }
-    try {
-      const bodyText = await window.locator('body').innerText({ timeout: 5000 })
-      console.error('[smoke] body text:', bodyText.slice(0, 1500).replace(/\n+/g, ' | '))
-    } catch {
-      console.error('[smoke] body text: <unavailable>')
     }
   }
   console.error(`[smoke] console errors (${consoleErrors.length}):`)
