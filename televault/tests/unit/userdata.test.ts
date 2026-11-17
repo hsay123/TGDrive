@@ -8,8 +8,13 @@ vi.mock('electron', () => ({
   app: { getPath: () => '/tmp/tv-test-userdata-db' },
 }))
 
-import { getDb } from '../../core/db/db'
+import { getDb, closeDb } from '../../core/db/db'
 import { getSetting, setSetting } from '../../core/db/settings.db'
+
+// The "restart" test calls vi.resetModules(), which creates a second db module
+// instance with its own open connection. Keep a handle so teardown can close it
+// too — on Windows an open SQLite handle makes rmSync(televault.db) fail EBUSY.
+let closeReopenedDb: (() => void) | undefined
 
 beforeAll(() => {
   fs.rmSync(USERDATA, { recursive: true, force: true })
@@ -17,6 +22,8 @@ beforeAll(() => {
 })
 
 afterAll(() => {
+  closeReopenedDb?.()
+  closeDb()
   fs.rmSync(USERDATA, { recursive: true, force: true })
 })
 
@@ -39,7 +46,8 @@ describe('userData / path handling', () => {
 
   it('still reads the session after a simulated restart (module reload)', async () => {
     vi.resetModules()
-    const { getDb: reopenDb } = await import('../../core/db/db')
+    const { getDb: reopenDb, closeDb: closeReopened } = await import('../../core/db/db')
+    closeReopenedDb = closeReopened
     const { getSetting: readSetting } = await import('../../core/db/settings.db')
 
     expect(reopenDb().name).toBe(path.join(USERDATA, 'televault.db'))
