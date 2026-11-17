@@ -114,8 +114,22 @@ jobs:
         run: |
           echo "CSC_LINK=${MAC_CERT_P12}" >> "$GITHUB_ENV"
           echo "CSC_KEY_PASSWORD=${MAC_CERT_PASSWORD}" >> "$GITHUB_ENV"
-      - name: Build x64 DMG
-        run: npm run build:prepare && npx electron-builder --mac --x64 --publish never
+      - name: Build x64 app
+        run: npm run build:prepare && npx electron-builder --mac --x64 --dir --publish never
+      # Without a Developer ID, electron-builder leaves the bundle unsigned.
+      # Ad-hoc sign it so the app has a valid seal (the standard Gatekeeper
+      # warning remains, but there is no "damaged and can't be opened" error).
+      # Skip this when a real signing certificate is configured.
+      - name: Ad-hoc sign x64 app (no Developer ID configured)
+        if: ${{ env.MAC_CERT_P12 == '' }}
+        run: |
+          set -euo pipefail
+          codesign --force --deep --sign - --options runtime --timestamp=none \
+            --entitlements build/entitlements.mac.adhoc.plist \
+            release/mac-x64/TeleVault.app
+          codesign --verify --deep --strict --verbose=2 release/mac-x64/TeleVault.app
+      - name: Build x64 DMG + ZIP from signed app
+        run: npx electron-builder --mac --x64 --publish never --prepackaged release/mac-x64/TeleVault.app
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: release-mac-x64
