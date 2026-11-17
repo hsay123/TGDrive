@@ -59,8 +59,19 @@ no UI redesign. Each item below needs its own issue, test plan and commit.
     the upgrade separately with dependency + API migration, full QA re-run, and a new min-OS
     table in `docs/FACTS_FOR_WEBSITE.md`.
 12. **Code signing / notarization** — Windows SignPath Foundation or Azure Trusted Signing;
-    macOS Developer ID + notarization. Builds work unsigned; see `docs/RELEASE_HANDOFF.md`.
-13. **macOS universal build** — attempt `universal` in CI; if native modules block it, keep
-    the two-arch `arm64` + `x64` DMGs and record the reason (Phase 4 decision).
-14. **Publish updated min-OS table** after the Electron upgrade — see
+    macOS Developer ID + notarization (needs an `afterSign` hook + Apple credentials).
+    Builds work unsigned; see `docs/RELEASE_PROCESS.md`.
+13. **macOS universal build — evaluated and rejected (Phase 4 decision).** electron-builder
+    24.13.3 does not document `universal` as a supported target arch, and the native addons
+    (`keytar`, `better-sqlite3`, `sharp`'s per-arch `@img` binaries) cannot be reliably
+    merged. The release therefore ships native `arm64` + `x64` DMGs built on matching
+    runners. Revisit only after an electron-builder upgrade; see `docs/RELEASE_PROCESS.md`.
+14. **Multi-arch macOS auto-update metadata** — each native DMG build emits its own
+    `latest-mac.yml`. The release currently stages them but does not consolidate them
+    into one arch-aware index, so `electron-updater` on macOS needs verification (or a
+    merge step) before auto-update is claimed to work. Downloads are unaffected.
+15. **Local RPM toolchain** — the dev host has RPM 6, which bundled fpm 1.9.3 cannot target.
+    CI `ubuntu-latest` (RPM 4.x) builds the `.rpm`; consider upgrading electron-builder/fpm
+    if local RPM builds are ever required.
+16. **Publish updated min-OS table** after the Electron upgrade — see
     `docs/FACTS_FOR_WEBSITE.md` section 7.
