@@ -7,3 +7,6 @@ release
 *.db
 thumbnails/
 .DS_Store
+
+# Local-only audit notes (never publish)
+.local-audit/
