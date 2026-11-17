@@ -50,10 +50,10 @@ jobs:
         run: sudo apt-get update -qq && sudo apt-get install -y -qq libsecret-1-0 libnotify4 libnss3 xvfb
 
       # node-gyp (via electron-rebuild's postinstall) imports distutils, which
-      # was removed in Python 3.12+. Pin 3.11 on macOS so npm ci can rebuild
-      # native modules there.
-      - name: Set up Python 3.11 for node-gyp (macOS)
-        if: runner.os == 'macOS'
+      # was removed in Python 3.12+. Pin 3.11 off Linux so npm ci can rebuild
+      # native modules on macOS and Windows.
+      - name: Set up Python 3.11 for node-gyp (non-Linux)
+        if: runner.os != 'Linux'
         uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
         with:
           python-version: '3.11'
