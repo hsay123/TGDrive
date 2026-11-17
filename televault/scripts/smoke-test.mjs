@@ -68,11 +68,12 @@ if (process.platform === 'linux') args.push('--no-sandbox')
 const consoleErrors = []
 const pageErrors = []
 let app
+let window
 
 try {
   app = await electron.launch({ executablePath, args, env })
 
-  const window = await app.firstWindow({ timeout: 30000 })
+  window = await app.firstWindow({ timeout: 30000 })
   window.on('console', (msg) => {
     if (msg.type() === 'error') consoleErrors.push(msg.text())
   })
@@ -97,6 +98,25 @@ try {
   console.log('[smoke] PASS')
 } catch (err) {
   console.error('[smoke] FAIL:', err.message)
+  // Diagnostics: show what the app actually rendered so a CI-only failure can
+  // be diagnosed from the log without needing the runner machine.
+  if (window) {
+    try {
+      console.error('[smoke] window URL:', window.url())
+    } catch {
+      /* window may already be closed */
+    }
+    try {
+      const bodyText = await window.locator('body').innerText({ timeout: 5000 })
+      console.error('[smoke] body text:', bodyText.slice(0, 1500).replace(/\n+/g, ' | '))
+    } catch {
+      console.error('[smoke] body text: <unavailable>')
+    }
+  }
+  console.error(`[smoke] console errors (${consoleErrors.length}):`)
+  for (const e of consoleErrors.slice(0, 10)) console.error('  console:', e.slice(0, 500))
+  console.error(`[smoke] page errors (${pageErrors.length}):`)
+  for (const e of pageErrors.slice(0, 10)) console.error('  page:', e.slice(0, 500))
   process.exitCode = 1
 } finally {
   if (app) await app.close().catch(() => {})
