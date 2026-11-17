@@ -100,6 +100,20 @@ try {
   console.error('[smoke] FAIL:', err.message)
   // Diagnostics: show what the app actually rendered so a CI-only failure can
   // be diagnosed from the log without needing the runner machine.
+  if (app) {
+    try {
+      const info = await app.evaluate((electron) => ({
+        appPath: electron.app.getAppPath(),
+        userData: electron.app.getPath('userData'),
+        isPackaged: electron.app.isPackaged,
+        electron: process.versions.electron,
+        windows: electron.BrowserWindow.getAllWindows().map((w) => w.webContents.getURL()),
+      }))
+      console.error('[smoke] main-process info:', JSON.stringify(info))
+    } catch (e) {
+      console.error('[smoke] main-process info: <unavailable>', e.message)
+    }
+  }
   if (window) {
     try {
       console.error('[smoke] window URL:', window.url())
