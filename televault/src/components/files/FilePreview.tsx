@@ -581,10 +581,9 @@ export function FilePreview({ entry, onClose }: FilePreviewProps) {
             className="flex-1 min-h-0 overflow-y-auto px-6 py-8"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="mx-auto max-w-[720px]">
+            <div className="tv-md mx-auto max-w-[720px]">
               {textMode.markdown && MarkdownRenderer ? (
                 <MarkdownRenderer
-                  className="tv-md"
                   components={{
                     // Keep the preview self-contained: route any link the app
                     // hasn't seen to the OS browser via Electron's window-open
