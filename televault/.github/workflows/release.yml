@@ -1,8 +1,12 @@
 name: Release
+
 on:
   push:
     tags:
       - 'v*.*.*'
+
+permissions:
+  contents: write
 
 jobs:
   release:
@@ -14,7 +18,7 @@ jobs:
             target: linux
           - os: windows-latest
             target: win
-          - os: macos-latest
+          - os: macos-13        # Intel: required to produce a universal/x64 dmg
             target: mac
 
     runs-on: ${{ matrix.os }}
@@ -30,13 +34,17 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      # build:<target> runs clean -> icons -> tsc -> vite build -> electron-builder,
+      # so dist/ and dist-electron/ always exist before packaging.
       - name: Build and publish
         run: npm run build:${{ matrix.target }}
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TELEGRAM_API_ID: ${{ secrets.TELEGRAM_API_ID }}
-          TELEGRAM_API_HASH: ${{ secrets.TELEGRAM_API_HASH }}
-          LICENSE_SERVER_URL: ${{ secrets.LICENSE_SERVER_URL }}
+          # Optional: set these to sign. Absent = unsigned build.
+          CSC_LINK: ${{ secrets.MAC_CERT_P12 }}
+          CSC_KEY_PASSWORD: ${{ secrets.MAC_CERT_PASSWORD }}
+          WIN_CSC_LINK: ${{ secrets.WIN_CERT_P12 }}
+          WIN_CSC_KEY_PASSWORD: ${{ secrets.WIN_CERT_PASSWORD }}
 
       - name: Upload release artifacts
         uses: actions/upload-artifact@v4
