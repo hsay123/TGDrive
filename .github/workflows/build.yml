@@ -100,7 +100,7 @@ jobs:
           $installedExe = Get-ChildItem -Path $installDir -Filter 'TeleVault.exe' -Recurse -File -ErrorAction SilentlyContinue |
             Select-Object -First 1 -ExpandProperty FullName
           if (-not $installedExe) {
-            Write-Host "Install tree under $installDir:"
+            Write-Host "Install tree under ${installDir}:"
             if (Test-Path $installDir) { Get-ChildItem -Path $installDir -Recurse | ForEach-Object { Write-Host $_.FullName } }
             throw "Installed app not found under $installDir"
           }
