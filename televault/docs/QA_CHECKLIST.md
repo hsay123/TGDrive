@@ -45,3 +45,26 @@ xvfb-run -a npm run test:smoke
 ```
 
 Both typecheck commands are listed in the results table above; there is no combined `npm run typecheck` script yet (kept as-is to avoid unrelated package.json churn).
+
+## Phase 4/5 — Linux installer artifacts (local)
+
+| Artifact | Fixed name | Result | SHA-256 |
+|---|---|---|---|
+| AppImage (x64) | `TeleVault-linux-x64.AppImage` | PASS — 132 MiB, ELF x86-64 | `92f81f6212340d173b1737c937851dc588cea073baf0fdc0d2b16cf495549185` |
+| Debian (x64) | `TeleVault-linux-x64.deb` | PASS — 89 MiB, deb 2.0 | `7568f29e7c1ed16691d134088ff11231259e2dd38e257c1a23ca69ecc00affba` |
+| RPM (x64) | `TeleVault-linux-x64.rpm` | **Not buildable on this host** — see below | — |
+
+- Built with `npm run build:prepare && electron-builder --linux AppImage deb --x64`. RPM is present in the committed config for CI but excluded from the local target list.
+- `dpkg-deb -I` confirms `Package: televault`, `Version: 0.1.0`, `Architecture: amd64`, and `Depends: libsecret-1-0, libnotify4, libnss3` (the keytar/libsecret runtime deps).
+- `sha256sum -c SHA256SUMS.txt` verifies both artifacts OK. `npm run checksums` regenerates it deterministically (sorted, sha256sum-compatible format).
+- `asarUnpack` verified: `@img` and `sharp` native libs are present under `resources/app.asar.unpacked/node_modules/`, so thumbnails work when packaged.
+- Smoke test re-run against this fresh unpacked build: PASS (0 console/page errors).
+
+### Why RPM is CI-only here
+
+The host has **RPM 6.0.1**; electron-builder 24.13.3 uses its bundled **fpm 1.9.3**, which targets RPM 4.x. A minimal `fpm -s dir -t rpm` package (no TeleVault files) fails identically, proving it is a host toolchain incompatibility, not our config. Two distinct RPM 6 breakages were reproduced:
+
+1. RPM 6 uses a sqlite DB at `/var/lib/rpm` (not writable as this user); worked around locally via a throwaway `~/.rpmmacros` dbpath.
+2. RPM 6 derives the buildroot as `<name>-<version>-build/BUILDROOT`, which fpm 1.9.3 does not stage into — `rpmbuild` reports `File not found` for a file that was staged at the exact path it names. Patching the cached fpm to stage into RPM 6's layout still failed.
+
+**Resolution:** no repo files were changed for these experiments; the cached fpm was restored to its original state and the local `~/.rpmmacros` removed. The `rpm` target stays in `electron-builder.yml`. GitHub Actions `ubuntu-latest` ships RPM 4.x, where fpm 1.9.3 builds `.rpm` correctly — the RPM artifact will be produced and smoke-tested there, not faked locally.
