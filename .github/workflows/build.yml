@@ -25,7 +25,7 @@ jobs:
         include:
           - os: ubuntu-latest # x64, RPM 4.x
             smoke: xvfb-run -a npm run test:smoke
-          - os: windows-latest # x64
+          - os: windows-2022 # x64 — has the VS C++ build tools node-gyp needs
             smoke: npm run test:smoke
           - os: macos-latest # arm64 (Apple Silicon)
             smoke: npm run test:smoke
@@ -48,6 +48,15 @@ jobs:
       - name: Install Linux app runtime libraries
         if: runner.os == 'Linux'
         run: sudo apt-get update -qq && sudo apt-get install -y -qq libsecret-1-0 libnotify4 libnss3 xvfb
+
+      # node-gyp (via electron-rebuild's postinstall) imports distutils, which
+      # was removed in Python 3.12+. Pin 3.11 on macOS so npm ci can rebuild
+      # native modules there.
+      - name: Set up Python 3.11 for node-gyp (macOS)
+        if: runner.os == 'macOS'
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: '3.11'
 
       - name: Install dependencies
         run: npm ci
