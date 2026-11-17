@@ -9,6 +9,10 @@ on:
   push:
     tags:
       - 'v*.*.*'
+      # Explicit prerelease patterns; the release job marks these --prerelease.
+      - 'v*.*.*-rc.*'
+      - 'v*.*.*-beta.*'
+      - 'v*.*.*-alpha.*'
   workflow_dispatch:
     inputs:
       dry_run:
@@ -210,8 +214,13 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
+          prerelease_flags=()
+          case "${GITHUB_REF_NAME}" in
+            *-rc.*|*-beta.*|*-alpha.*) prerelease_flags+=(--prerelease) ;;
+          esac
           gh release create "${GITHUB_REF_NAME}" \
             --draft \
+            "${prerelease_flags[@]}" \
             --title "TeleVault ${GITHUB_REF_NAME}" \
             --generate-notes \
             stage/*

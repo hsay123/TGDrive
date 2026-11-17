@@ -7,6 +7,9 @@ import { ipcResult } from './ipc/helpers'
 autoUpdater.logger = log
 autoUpdater.autoDownload = false // don't auto-download — ask user first
 autoUpdater.autoInstallOnAppQuit = true
+// Stable channel only: -rc/-beta/-alpha drafts are never offered to installed
+// users even when a draft is later published as a prerelease.
+autoUpdater.allowPrerelease = false
 
 export type UpdatePhase =
   | 'idle'
