@@ -2,39 +2,44 @@
 
 **Date:** 2026-11-17 · **Branch:** `release/packaging` · **Version in tree:** `0.1.0` (`package.json`)
 
-Every claim below is marked **CONFIRMED** (with the file and line proving it) or **NOT FOUND** (the claimed behaviour does not exist in this tree). Do not upgrade a NOT FOUND to a marketing claim without a code change.
+Every claim below is marked **CONFIRMED** (with the file and line proving it) or **NOT FOUND** (the claimed behaviour does not exist in this tree). Do not upgrade a NOT FOUND to a marketing claim without a code change. Line numbers refer to this commit; re-check after edits.
 
-## 1. Encryption
+## 1. Encryption — exactly what is and is not encrypted
 
 | Website statement | Status | Evidence |
 |---|---|---|
-| File contents are encrypted before upload, on the user's device | **CONFIRMED** | `core/crypto/encrypt.ts:4,8-14`; `core/telegram/uploader.ts:213-220` encrypts to a temp file *before* `getChunks()` at `:244` |
-| Algorithm is AES-256-GCM with a random 12-byte IV and 16-byte auth tag | **CONFIRMED** | `core/crypto/encrypt.ts:4-6,9-13` |
-| Decryption happens on download, locally | **CONFIRMED** | `core/telegram/downloader.ts:198` |
-| The key is 32 random bytes held in the OS keychain (service `televault`, account `encryption-key`) and is never uploaded | **CONFIRMED** | `core/crypto/keystore.ts:4-16`; `core/crypto/secure-store.ts:43` |
-| The key is derived from the user's password, or can be recovered by TeleVault | **NOT FOUND** | `core/crypto/keystore.ts:7-20` — random key, no escrow or recovery path |
-| File **names, paths, MIME types and sizes** are encrypted too | **NOT FOUND** | They are written in plaintext JSON into the Telegram message caption: `core/telegram/uploader.ts:44-54,72-73,271,294`; and into local SQLite: `core/db/schema.ts:15-19` |
-| The Telegram session is encrypted by the app at rest | **NOT FOUND** | Stored as a plain setting string `telegram_session`: `core/telegram/client.ts:183-187`; DB at `core/db/db.ts:11` |
+| **File contents** are encrypted before upload, on the user's device | **CONFIRMED** | `core/telegram/uploader.ts:213-220` encrypts a temp file with `getEncryptionKey()` *before* chunking at `:244`. Cipher: `core/crypto/encrypt.ts:4,8-14`. |
+| Algorithm is AES-256-GCM with a random 12-byte IV and 16-byte auth tag | **CONFIRMED** | `core/crypto/encrypt.ts:4-6,9-13,21-22` |
+| Decryption happens locally on download | **CONFIRMED** | `core/telegram/downloader.ts:198` calls `getEncryptionKey()` |
+| The key is 32 random bytes in the OS keychain (service `televault`, account `encryption-key`), generated on-device, never uploaded | **CONFIRMED** | `core/crypto/keystore.ts:4-16`; `core/crypto/secure-store.ts:67-77` |
+| The key is derived from a password, escrowed, or recoverable by TeleVault | **NOT FOUND** | `core/crypto/keystore.ts:14` (`crypto.randomBytes(32)`); no recovery path exists |
+| **File name, path, MIME type and size are encrypted** | **NOT FOUND — they are PLAINTEXT** | Written as plaintext JSON into every Telegram message caption: `core/telegram/uploader.ts:44-54` (`CaptionMetadata`), `:72-73` (`JSON.stringify`), `:271,294`. Also stored in local SQLite in cleartext: `core/db/schema.ts:13-29` (`name`, `path`, `size`, `mime_type`). |
+| Folder names / structure are encrypted | **NOT FOUND — PLAINTEXT** | `core/db/schema.ts:2-11`; synced via the Index channel (`core/sync/pusher.ts`) |
+| Thumbnails are encrypted | **NOT FOUND** | Stored as local files `thumbnail_path` (`core/db/schema.ts:25`) and uploaded as separate Telegram messages |
+| The **Telegram session** is encrypted by the app at rest | **NOT FOUND — PLAINTEXT** | Saved as the setting `telegram_session` via `persistSession()` at `core/telegram/client.ts:182-187`; read back at `:189-192`; SQLite DB at `core/db/db.ts:11`. No encryption wrapper is applied. |
 
-**Safe wording:** "File contents are encrypted on your device with AES-256-GCM. The key stays in your OS keychain. File names and metadata are not encrypted."  
-**Unsafe wording:** "All your data is encrypted" or "we can't see anything" — names/paths are plaintext in captions.
+**Safe wording:** "File *contents* are encrypted on your device with AES-256-GCM. The key stays in your OS keychain. File names, paths and metadata are **not** encrypted."
+
+**Unsafe wording:** "All your data is encrypted", "zero-knowledge", "we can't see anything" — names/paths/MIME/size are plaintext in captions and local SQLite.
 
 ## 2. Where data lives
 
 | Website statement | Status | Evidence |
 |---|---|---|
-| File metadata is stored locally in a SQLite database | **CONFIRMED** | `core/db/db.ts:11` (`<userData>/televault.db`); `core/db/schema.ts:2-30` |
-| File contents are stored in the user's own Telegram account, in three dedicated channels (Storage / Index / Trash) | **CONFIRMED** | `core/telegram/uploader.ts:195,248,294`; `electron/ipc/files.ipc.ts:364-372`; channel init log path `core/telegram/channels.ts` |
-| A TeleVault-hosted cloud server stores files or metadata | **NOT FOUND** | Only `dist/**/*`, `dist-electron/**/*`, `package.json` are packaged (`electron-builder.yml:9-13`); no license-server URL in the extracted asar |
-| All app data is under the OS app-data directory, not the install folder | **CONFIRMED** | `app.getPath('userData')` used for DB (`core/db/db.ts:11`), temp chunks (`core/fs/chunker.ts:42`), preview cache (`electron/ipc/files.ipc.ts:410`), thumbnails (`:462`), avatars (`electron/ipc/system.ipc.ts:75`) |
+| File metadata is stored locally in a SQLite database | **CONFIRMED** | `core/db/db.ts:11` (`path.join(app.getPath('userData'), 'televault.db')`); schema at `core/db/schema.ts:2-74` |
+| File contents are stored in the user's own Telegram account in three private channels (Storage / Index / Trash) | **CONFIRMED** | `core/telegram/uploader.ts:195,248,294`; `electron/ipc/files.ipc.ts:364-372`; `core/telegram/channels.ts` |
+| A TeleVault-hosted server stores files or metadata | **NOT FOUND** | Only `dist/**/*`, `dist-electron/**/*`, `package.json` are packaged (`electron-builder.yml:9-12`); no license-server URL in the extracted asar |
+| All app data is under the OS app-data directory, never the install folder | **CONFIRMED** | DB `core/db/db.ts:11`; temp chunks `core/fs/chunker.ts:42`; preview cache `electron/ipc/files.ipc.ts:410`; thumbnails `:462`; avatars `electron/ipc/system.ipc.ts:75` |
+
+**Concrete app-data locations** (product name `TeleVault`, Electron `app.getPath('userData')`): Windows `%APPDATA%\TeleVault`, macOS `~/Library/Application Support/TeleVault`, Linux `~/.config/TeleVault` (XDG).
 
 ## 3. Telegram authentication
 
 | Website statement | Status | Evidence |
 |---|---|---|
-| Login is with a **user** Telegram account over MTProto (GramJS), not a bot | **CONFIRMED** | `core/telegram/client.ts:1-2,89-97`; `core/telegram/auth.ts:124-148` (`sendCode` → `signIn`) |
-| The user supplies their own `api_id` and `api_hash` | **CONFIRMED** | `core/telegram/client.ts:38-43`; `src/pages/Setup.tsx:39,88,98` |
-| TeleVault ships shared/bundled API credentials | **NOT FOUND** | `.env` is untracked and not in `electron-builder.yml:9-13`; first run collects credentials in `Setup.tsx` |
+| Login uses a **user** Telegram account over MTProto (GramJS), not a bot | **CONFIRMED** | `core/telegram/client.ts:1-2,89-97`; `core/telegram/auth.ts:124-148` (`sendCode` → `signIn`) |
+| The user supplies their own `api_id` and `api_hash` | **CONFIRMED** | `core/telegram/client.ts:38-43` (settings first, env fallback for dev); `src/pages/Setup.tsx:39,88,98` |
+| TeleVault ships shared/bundled API credentials | **NOT FOUND** | `.env` is gitignored and not in `electron-builder.yml:9-12`; first run collects credentials in `Setup.tsx` |
 
 ## 4. Features
 
@@ -45,38 +50,61 @@ Every claim below is marked **CONFIRMED** (with the file and line proving it) or
 | Search | **CONFIRMED** | `electron/ipc/files.ipc.ts:336` (`files:search`) |
 | In-app image, video and PDF preview | **CONFIRMED** | `src/components/files/FilePreview.tsx:26-29,48-51` |
 | Markdown/code text preview | **CONFIRMED** | `src/components/files/FilePreview.tsx:106-107` |
-| Chunked uploads (512 MiB chunks) | **CONFIRMED** | `core/fs/chunker.ts:8,86-91` |
-| Resumable transfers (resume a partial upload from byte offset) | **NOT FOUND** | `core/telegram/ratelimit.ts` `withRetry` retries a whole chunk; no byte-offset resume exists |
-| Hard 1.9 GB per-file limit advertised | **NOT FOUND** | `MAX_FILE_SIZE` is declared at `core/telegram/uploader.ts:26` but never referenced |
-| Version history UI | **NOT FOUND** | Backend exists (`electron/ipc/files.ipc.ts:376-385`) but UI is "Version history — coming soon" (`src/components/files/ContextMenu.tsx:172`) |
+| Chunked uploads (512 MiB chunks) | **CONFIRMED** | `core/fs/chunker.ts:8,44,60` |
+| Resumable transfers (byte-offset resume) | **NOT FOUND** | `core/telegram/ratelimit.ts` `withRetry` retries a whole chunk; no byte-offset resume |
+| Hard 1.9 GB per-file limit advertised | **NOT FOUND** | `MAX_FILE_SIZE` declared at `core/telegram/uploader.ts:26` but never referenced |
+| Version history UI | **NOT FOUND** | Backend exists (`electron/ipc/files.ipc.ts:376-385`); UI is "Coming soon" (`src/components/files/ContextMenu.tsx:172`) |
 | Tags | **NOT FOUND** | `src/components/layout/Sidebar.tsx:226` ("Tags coming soon") |
 | Public share links usable by non-users | **NOT FOUND** | `files:shareLink` returns a private-channel URL `https://t.me/c/<id>/<msg>` (`electron/ipc/files.ipc.ts:364-372`) |
 
-## 5. Telemetry / phone-home
+## 5. Outbound network destinations (complete list)
 
-| Website statement | Status | Evidence |
+| Destination | When | Evidence |
 |---|---|---|
-| No analytics or crash-reporting SDK | **NOT FOUND** (i.e. none present) | No `sentry`/`posthog`/`analytics` dependency in `package.json`; no such import in `core/`, `electron/`, `src/` |
-| Only outbound calls are Telegram and the update feed | **CONFIRMED** | Telegram via GramJS (`core/telegram/client.ts:97`); GitHub release feed `electron/updater.ts:40`, `electron-builder.yml:71-75`. `FilePreview.tsx:94` fetches a **local** `tvfile://` URL. `shell.openExternal` calls (`electron/main.ts:60,73`, `electron/ipc/license.ipc.ts:9`) are user-initiated link opens. |
-| A license server is contacted at startup | **NOT FOUND** | 0 source references to `LICENSE_SERVER_URL` / `LICENSE_SERVER_SECRET`; see `docs/audit/02-license-gating.md` |
+| **Telegram MTProto servers** | Login, channel setup, every upload/download/sync | `core/telegram/client.ts:89-97` (`new TelegramClient(...)`); auth `core/telegram/auth.ts:124-148`; uploader/downloader modules. This is the app's primary and intended network use. |
+| **GitHub releases feed** (`github.com/hsay123/TGDrive`, via `electron-updater`) | Automatic check ~5 s after launch, plus manual "check for updates" click | `electron/updater.ts:37-41` (automatic) and `:86-90` (manual); provider/owner/repo at `electron-builder.yml:71-74`. No file content is sent — it is an update metadata request. |
+| **OS browser via `shell.openExternal`** | Only when a link is clicked / a link-open IPC is invoked | `electron/main.ts:62,75` (window open + will-navigate) and `electron/ipc/setup.ipc.ts:7-9` (`system:openExternal`). User-initiated. |
+| `tvfile://` local resource fetch | Preview rendering | `src/components/files/FilePreview.tsx:94` — **local**, not outbound. |
 
-## 6. Supported platforms (as configured in code)
+**NOT FOUND:** analytics, crash reporting, telemetry, a license server, or any payment endpoint. No `sentry`/`posthog`/`analytics` dependency in `package.json`; zero source references to `LICENSE_SERVER_URL` / `LICENSE_SERVER_SECRET` (see the local-only audit at `.local-audit/02-license-gating.md`). No local HTTP server exists in production (the orphaned `server/` tree was removed in this branch).
+
+## 6. Keytar / OS credential store, and Linux with no keyring
 
 | Statement | Status | Evidence |
 |---|---|---|
-| Windows, macOS and Linux targets are configured | **CONFIRMED** | `electron-builder.yml:31-45,55-69` (`win/nsis`, `mac/dmg+zip`, `linux/AppImage+deb`) |
-| RPM target is configured | **NOT FOUND** | `electron-builder.yml:55-57` lists only AppImage and deb |
-| Electron 29 / Chromium renderer | **CONFIRMED** | `package.json` devDependency `electron: ^29.1.4`; `electron/main.ts:43` `BrowserWindow` |
-| Native modules are bundled | **CONFIRMED** | `better-sqlite3`, `keytar`, `sharp` in `package.json`; `postinstall` runs `electron-rebuild` |
-| macOS-specific window styling | **CONFIRMED** | `electron/main.ts:49` (`titleBarStyle: hiddenInset` on darwin) |
+| keytar is used via a lazy, cached wrapper | **CONFIRMED** | `core/crypto/secure-store.ts:18-55` — `require('keytar')` happens on first use (`:39-48`), not at module load; both the module and any failure are cached (`:20-21,36-37`). |
+| It stores the AES key and the hidden-folder PIN | **CONFIRMED** | `core/crypto/keystore.ts:2,9,15,26,36,56` (account `encryption-key`); `core/crypto/reveal-pin.ts:2-21` (account `reveal-pin`); service `televault` in both. |
+| On Linux, libsecret/keyring is required | **CONFIRMED** | `core/crypto/secure-store.ts:23-33` (`missingLibsecretHint`) and README "Linux: libsecret is required". The `.deb` declares `libsecret-1-0` at `electron-builder.yml:51-56`. |
+| With no keyring, the app crashes at startup | **NOT FOUND — degrades gracefully** | Loading is lazy (`secure-store.ts:40-42`), so no startup crash. A missing store produces one cached, actionable error with a Debian/Ubuntu install hint (`:23-33,49-54`). Encrypted upload/download fails with that message; unencrypted use is unaffected. `credentialStoreAvailable()` (`:58-65`) exposes a side-effect-free check. **Verified under xvfb with no secret service in Phase 5** — see the test report there. |
 
-## 7. License / provenance
+## 7. Supported platforms and minimum OS versions
+
+Derived from the Electron version currently in the tree. **Verified** against the upstream Electron `README.md` "Platform support" section for the exact tag (`v29.1.4`), fetched 2026-11-17.
+
+| Statement | Status | Evidence |
+|---|---|---|
+| Windows, macOS and Linux targets are configured | **CONFIRMED** | `electron-builder.yml:24-69` (`mac` dmg+zip `25-26`, `win` nsis `37-39`, `linux` AppImage+deb `58-61`) |
+| RPM target is configured | **NOT FOUND** (to be added in Phase 4) | `electron-builder.yml:58-61` lists only AppImage and deb |
+| Renderer is Electron (Chromium) | **CONFIRMED** | `electron: ^29.1.4` in `package.json`; `electron/main.ts:43` `BrowserWindow` |
+| Native modules are bundled | **CONFIRMED** | `better-sqlite3`, `keytar`, `sharp` in `package.json`; `postinstall` runs `electron-rebuild`; `asarUnpack` at `electron-builder.yml:17-20` |
+
+**Minimum supported OS versions for the current Electron 29:**
+
+| OS | Minimum | Architectures | Source |
+|---|---|---|---|
+| Windows | Windows 10 and up | x64, arm64 | Electron v29.1.4 README, "Platform support" |
+| macOS | Catalina (10.15) and up | x64, arm64 | Electron v29.1.4 README, "Platform support" |
+| Linux | Ubuntu 18.04+, Fedora 32+, Debian 10+ (glibc-compatible distros) | x64, arm64 | Electron v29.1.4 README, "Platform support" |
+
+> These minimums will be **re-verified and updated in the separate Electron-upgrade commit** planned after Phase 3. Electron 45 raises the macOS minimum to Ventura (13); do not publish the table above if the upgrade has landed.
+
+## 8. License / provenance
 
 | Statement | Status | Evidence |
 |---|---|---|
 | Repository license is MIT | **CONFIRMED** | `LICENSE:1-3` — "MIT License / Copyright (c) 2026 TeleVault" |
-| Forked from another project (attribution required) | **NOT FOUND** | `LICENSE` contains no upstream copyright; first commit `9351a85970af` is "Initial commit" by `hsay123`; no fork/attribution header in `README.md` |
+| Forked from another project (attribution required) | **NOT FOUND** | `LICENSE` has no upstream copyright; initial commit `9351a85970af` by `hsay123`; no attribution header in `README.md` |
 
 ## Unsafe claims to avoid until code changes
 
-"All data encrypted", "unlimited storage", "public share links", "resumable uploads", "version history", "tags", "pro plan", "1.9 GB file limit", "notarized / signed builds" (builds are currently unsigned — see `docs/RELEASE_HANDOFF.md`, TBD after first CI run).
+"All data encrypted", "zero-knowledge", "metadata privacy", "unlimited storage", "public share links", "resumable uploads", "version history", "tags", "pro plan", "1.9 GB file limit", "notarized / signed builds" (builds are currently unsigned — see `docs/RELEASE_HANDOFF.md`, TBD after the first CI run).
