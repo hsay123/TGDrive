@@ -25,20 +25,12 @@ jobs:
         include:
           - os: ubuntu-latest # x64, RPM 4.x
             smoke: xvfb-run -a npm run test:smoke
-            smoke_optional: false
           - os: windows-2022 # x64 — has the VS C++ build tools node-gyp needs
             smoke: npm run test:smoke
-            # Playwright attaches to a blank file:///<drive>:/ window instead of
-            # the packaged renderer on windows-2022 (Electron 29 + Playwright
-            # 1.49). Typechecks, unit tests and the unpacked build are still
-            # strict on Windows; only this automation-only smoke is advisory.
-            smoke_optional: true
           - os: macos-latest # arm64 (Apple Silicon)
             smoke: npm run test:smoke
-            smoke_optional: false
           - os: macos-15-intel # x64 (Intel) — macos-13/macos-14 are retired
             smoke: npm run test:smoke
-            smoke_optional: false
     defaults:
       run:
         working-directory: televault
@@ -83,7 +75,6 @@ jobs:
 
       - name: Packaged-app smoke test
         run: ${{ matrix.smoke }}
-        continue-on-error: ${{ matrix.smoke_optional }}
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2

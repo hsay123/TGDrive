@@ -128,6 +128,12 @@ function registerSystemIpc(): void {
     ipcResult(() => app.getVersion())
   )
 
+  // Smoke-only readiness marker: the first-run screen calls this once mounted.
+  // No-op unless TELEVAULT_SMOKE=1, so normal launches are unchanged.
+  ipcMain.on('smoke:rendererReady', () => {
+    if (process.env.TELEVAULT_SMOKE === '1') console.log('[smoke] RENDERER_READY')
+  })
+
   ipcMain.handle('updater:install', async () =>
     ipcResult(async () => {
       installUpdate()

@@ -101,6 +101,7 @@ export interface TeleVaultAPI {
     openFolderPicker: () => Promise<IpcResult<string>>
     openInExplorer: (filePath: string) => Promise<IpcResult<void>>
     getAppVersion: () => Promise<IpcResult<string>>
+    notifyRendererReady: () => void
     getChannelStatus: () => Promise<IpcResult<{ ready: boolean; missing: string[] }>>
     initializeChannels: () => Promise<IpcResult<{ success: boolean }>>
     openExternal: (url: string) => Promise<IpcResult<void>>
