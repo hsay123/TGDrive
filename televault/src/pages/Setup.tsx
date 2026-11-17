@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Zap } from 'lucide-react'
 import { Button } from '../components/shared/Button'
@@ -10,6 +10,12 @@ export default function Setup() {
   const [apiHash, setApiHash] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  // Smoke-only: signal that the first-run screen actually mounted (no-op unless
+  // TELEVAULT_SMOKE=1 — see preload). Gives CI a renderer-side readiness marker.
+  useEffect(() => {
+    window.televault.system.notifyRendererReady()
+  }, [])
 
   async function handleSave() {
     const id = apiId.trim()

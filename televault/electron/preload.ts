@@ -104,6 +104,9 @@ const televault: TeleVaultAPI = {
     openInExplorer: (filePath) =>
       ipcRenderer.invoke('system:openInExplorer', filePath),
     getAppVersion: () => ipcRenderer.invoke('system:getAppVersion'),
+    notifyRendererReady: () => {
+      if (process.env.TELEVAULT_SMOKE === '1') ipcRenderer.send('smoke:rendererReady')
+    },
     getChannelStatus: () => ipcRenderer.invoke('system:getChannelStatus'),
     initializeChannels: () => ipcRenderer.invoke('system:initializeChannels'),
     openExternal: (url) => ipcRenderer.invoke('system:openExternal', url),

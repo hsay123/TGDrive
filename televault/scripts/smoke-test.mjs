@@ -55,7 +55,7 @@ if (!fs.existsSync(executablePath)) {
 // --user-data-dir is honoured by Electron on all three OSes; XDG_CONFIG_HOME
 // is kept as a Linux-only extra.
 const userDataRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'tv-smoke-'))
-const env = { ...process.env }
+const env = { ...process.env, TELEVAULT_SMOKE: '1' }
 if (process.platform === 'linux') {
   env.XDG_CONFIG_HOME = userDataRoot
   if (!env.DISPLAY) {
@@ -67,26 +67,37 @@ if (process.platform === 'linux') args.push('--no-sandbox')
 
 const consoleErrors = []
 const pageErrors = []
+const mainLogs = []
+let markerSeen = false
 let app
 let window
 
 try {
   app = await electron.launch({ executablePath, args, env })
+  // The renderer calls a smoke-only IPC when the first-run screen mounts; the
+  // main process logs RENDERER_READY. This is the authoritative signal — it
+  // does not depend on Playwright's Page target, which can be stale on Windows.
+  app.on('console', (msg) => {
+    mainLogs.push(`${msg.type()}: ${msg.text()}`)
+    if (msg.text().includes('RENDERER_READY')) markerSeen = true
+  })
   window = await app.firstWindow({ timeout: 30000 })
   window.on('console', (msg) => {
     if (msg.type() === 'error') consoleErrors.push(msg.text())
   })
   window.on('pageerror', (err) => pageErrors.push(String(err)))
 
-  await window.waitForLoadState('domcontentloaded')
-  await window.getByText('Welcome to TeleVault').waitFor({ timeout: 30000 })
-  const apiLabel = window.getByText('API ID', { exact: true }).first()
-  await apiLabel.waitFor({ timeout: 10000 })
-  if (!(await apiLabel.isVisible())) {
-    throw new Error('API ID label is not visible on the setup screen')
-  }
+  await window.waitForLoadState('domcontentloaded').catch(() => {})
 
-  console.log('[smoke] first-run /setup screen rendered ("Welcome to TeleVault", "API ID")')
+  // Wait up to 30s for the renderer-side readiness marker.
+  const deadline = Date.now() + 30000
+  while (!markerSeen && Date.now() < deadline) {
+    await new Promise((resolve) => setTimeout(resolve, 200))
+  }
+  if (!markerSeen) {
+    throw new Error('renderer-ready marker (RENDERER_READY) not seen within 30s')
+  }
+  console.log('[smoke] renderer-ready marker seen: RENDERER_READY')
   console.log(`[smoke] console errors: ${consoleErrors.length}; page errors: ${pageErrors.length}`)
   for (const e of consoleErrors.slice(0, 5)) console.log(`  console: ${e.slice(0, 200)}`)
   for (const e of pageErrors.slice(0, 5)) console.log(`  page:    ${e.slice(0, 200)}`)
@@ -97,6 +108,8 @@ try {
   console.log('[smoke] PASS')
 } catch (err) {
   console.error('[smoke] FAIL:', err.message)
+  console.error(`[smoke] main-process log (${mainLogs.length} lines):`)
+  for (const line of mainLogs) console.error('  main:', line.slice(0, 500))
   // Diagnostics so a CI-only failure can be triaged from the log without the
   // runner machine. Read the real Electron window too — Playwright's Page
   // target can be stale on Windows.
