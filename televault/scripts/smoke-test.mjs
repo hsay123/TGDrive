@@ -9,7 +9,10 @@
  * The default executable is auto-detected per platform from electron-builder's
  * unpacked output. On headless Linux wrap with: xvfb-run -a npm run test:smoke
  */
-import { _electron as electron } from 'playwright-core'
+// Surface the packaged Electron process' own stderr (e.g. a failed loadFile)
+// in CI logs. playwright-core reads DEBUG at import time, so set it first.
+process.env.DEBUG = process.env.DEBUG || 'pw:browser'
+const { _electron: electron } = await import('playwright-core')
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
