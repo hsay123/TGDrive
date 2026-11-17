@@ -1,5 +1,6 @@
 import crypto from 'crypto'
 import fs from 'fs'
+import { pipeline } from 'stream/promises'
 
 const ALGORITHM = 'aes-256-gcm'
 const IV_LENGTH = 12
@@ -21,44 +22,23 @@ export async function encryptFile(
   const iv = crypto.randomBytes(IV_LENGTH)
   const cipher = crypto.createCipheriv(ALGORITHM, key, iv)
 
-  await new Promise<void>((resolve, reject) => {
-    const output = fs.createWriteStream(destPath)
+  // File layout is IV || TAG || CIPHERTEXT (see decryptBuffer). Reserve the
+  // header with a placeholder tag first, stream ciphertext after it, then
+  // overwrite the placeholder with the real GCM tag once the cipher is done.
+  await fs.promises.writeFile(destPath, Buffer.concat([iv, Buffer.alloc(TAG_LENGTH)]))
+  await pipeline(
+    fs.createReadStream(sourcePath),
+    cipher,
+    fs.createWriteStream(destPath, { flags: 'a' })
+  )
 
-    output.on('error', reject)
-    cipher.on('error', reject)
-
-    output.write(iv)
-    output.write(Buffer.alloc(TAG_LENGTH))
-
-    const input = fs.createReadStream(sourcePath)
-    input.on('error', reject)
-
-    input.pipe(cipher)
-
-    cipher.on('end', () => {
-      const tag = cipher.getAuthTag()
-      fs.open(destPath, 'r+', (openErr, fd) => {
-        if (openErr) {
-          reject(openErr)
-          return
-        }
-
-        fs.write(fd, tag, 0, TAG_LENGTH, IV_LENGTH, (writeErr) => {
-          fs.close(fd, (closeErr) => {
-            output.end(() => {
-              if (writeErr) {
-                reject(writeErr)
-              } else if (closeErr) {
-                reject(closeErr)
-              } else {
-                resolve()
-              }
-            })
-          })
-        })
-      })
-    })
-  })
+  const tag = cipher.getAuthTag()
+  const handle = await fs.promises.open(destPath, 'r+')
+  try {
+    await handle.write(tag, 0, TAG_LENGTH, IV_LENGTH)
+  } finally {
+    await handle.close()
+  }
 }
 
 export { IV_LENGTH, TAG_LENGTH, ALGORITHM }
