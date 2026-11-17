@@ -79,13 +79,13 @@ The root `Build & Test` workflow was run on branch `release/packaging` at commit
 | Job (runner) | Typechecks | Unit tests (20) | Unpacked build | Packaged smoke | Result |
 |---|---|---|---|---|---|
 | `ubuntu-latest` (x64) | PASS | PASS | PASS | PASS (xvfb) | success |
-| `windows-2022` (x64) | PASS | PASS | PASS | advisory (see below) | success |
+| `windows-2022` (x64) | PASS | PASS | PASS | strict run later failed — see Phase 7 | success at the time |
 | `macos-latest` (arm64) | PASS | PASS | PASS | PASS | success |
 | `macos-15-intel` (x64) | PASS | PASS | PASS | PASS | success |
 
 This also confirms the items previously marked "must be confirmed in Actions": plain `npm ci` works on parenthesis-free paths, the native modules rebuild for Electron's ABI on every OS, and the Linux `.rpm` target builds on `ubuntu-latest` (RPM 4.x).
 
-### Why the Windows first-run smoke is advisory
+### Why the Windows first-run smoke was initially advisory (superseded by Phase 7)
 
 On `windows-2022`, Playwright 1.49.1 attaching to an Electron 29 packaged app can capture a blank `file:///D:/` window instead of the real renderer, even though the app itself is healthy. Extensive diagnostics established this is a test-harness artifact, not a packaging defect:
 
@@ -94,4 +94,31 @@ On `windows-2022`, Playwright 1.49.1 attaching to an Electron 29 packaged app ca
 - Re-issuing `loadFile()` from the main process after Playwright attaches makes the renderer render on Linux/macOS, but Playwright's `Page` object stays stale on the Windows runner (the window's DOM is genuinely empty from the automation side).
 - The identical smoke test passes on Linux and both macOS runners with the same build config and artifact layout.
 
-Therefore the Windows runner keeps its **strict** install, renderer/main typechecks, 20 unit tests, and unpacked build; only the automation-only first-run smoke step is marked `continue-on-error` (advisory). A real installer smoke test on an actual Windows machine remains a user-side acceptance step before release.
+Therefore the Windows runner keeps its **strict** install, renderer/main typechecks, 20 unit tests, and unpacked build; only the automation-only first-run smoke step was marked `continue-on-error` (advisory). **This was later replaced — see Phase 7.**
+
+## Phase 7 — Strict renderer-ready smoke (Windows bug found)
+
+The advisory workaround was replaced with a real renderer-side signal so blind spots cannot be suppressed:
+
+- `src/pages/Setup.tsx` calls `window.televault.system.notifyRendererReady()` once the first-run screen mounts.
+- `electron/preload.ts` only forwards the IPC when `process.env.TELEVAULT_SMOKE === '1'`; `electron/main.ts` only logs the marker under the same guard. **Verified locally: no marker and no IPC when the env var is unset** (setup screen still renders).
+- `scripts/smoke-test.mjs` sets `TELEVAULT_SMOKE=1` and waits up to 30s for `RENDERER_READY` on the main-process console via `app.on('console')`, independent of Playwright's Page target. It dumps the full main-process log on failure.
+- `build.yml` removed `smoke_optional` / `continue-on-error`: first-run smoke is strict on all four runners.
+
+**Result:** run `44110068855` (attempt 2, rerun to rule out a fluke): `ubuntu-latest`, `macos-15-intel`, `macos-latest` all `success`; **`windows-2022` `failure`**. The marker never appeared. Main-process log from the failing step:
+
+```
+[smoke] FAIL: renderer-ready marker (RENDERER_READY) not seen within 30s
+[smoke] main-process log (5 lines):
+  main: info: 15:06:19.541 > Checking for update
+  main: error: 15:06:19.552 > Error: ENOENT: no such file or directory, open '...\resources\app-update.yml'
+  main: error: 15:06:19.552 > Auto-updater error: ENOENT: no such file or directory, open '...\resources\app-update.yml'
+  main: warning: 15:06:19.553 > Update check failed: ENOENT: ...
+  main: log: [trash-expiry] Sweep skipped — Telegram channels not initialized yet
+[smoke] app window DOM: {"url":"file:///D:/","text":""}
+[smoke] playwright window URL: file:///D:/
+[smoke] console errors (0):
+[smoke] page errors (0):
+```
+
+The main process initializes fully, but the packaged renderer never navigates off `file:///D:/`, so React never mounts and no marker is emitted. Per the acceptance criterion this is a **real Windows first-run bug**, not a test artifact. It is reproducible and CI is intentionally left red. Follow-up PR #5 tracks it; no release should be cut until it is fixed and the strict smoke is green on all four runners.

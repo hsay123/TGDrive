@@ -2,7 +2,8 @@
 
 **Branch:** `release/packaging` (pushed to `origin/release/packaging`) · **Status:** Gate 2
 delivered and branch pushed. No tag, release, publish, or history rewrite has been
-performed. See `docs/QA_CHECKLIST.md` for the green cross-platform CI run.
+performed. See `docs/QA_CHECKLIST.md` for CI results. The strict Windows first-run
+smoke currently FAILS (real renderer bug) — do not cut a release until it is green.
 
 ## Final artifact list
 
@@ -11,7 +12,7 @@ generated once, after all platform artifacts are staged together.
 
 | Artifact | Produced by (runner) | Verified locally? |
 |---|---|---|
-| `TeleVault-windows-x64.exe` | `windows-2022` (x64) | No — Windows-only build; first-run smoke advisory in CI (see QA checklist) |
+| `TeleVault-windows-x64.exe` | `windows-2022` (x64) | No — Windows-only build; strict first-run smoke currently FAILS in CI (see Phase 7) |
 | `TeleVault-macos-x64.dmg` | `macos-15-intel` (Intel) | No — macOS-only build; smoke-tested in CI |
 | `TeleVault-macos-arm64.dmg` | `macos-latest` (arm64) | No — macOS-only build; smoke-tested in CI |
 | `TeleVault-linux-x64.AppImage` | `ubuntu-latest` (x64) | **Yes** — built, hashed, smoke-tested |
@@ -76,7 +77,7 @@ were rejected; `macos-15-intel` and `macos-latest` are used instead.
 | `.AppImage` / `.deb` build + metadata | PASS | release.yml |
 | `.rpm` build | Blocked by RPM 6 host | release.yml on `ubuntu-latest` (RPM 4.x) |
 | `.exe` build | Not possible locally | release.yml + `windows-2022` runner |
-| `.exe` first-run smoke | Not possible locally | advisory in CI (Playwright/Electron attach race); user-side acceptance on a real Windows machine |
+| `.exe` first-run smoke | Not possible locally | strict in CI — FAILS, renderer never mounts (Phase 7); must be fixed before release |
 | `.dmg` (x64 + arm64) build + first-run smoke | Not possible locally | release.yml + macOS runners |
 | Code signing / notarization | N/A | Only if signing secrets are supplied |
 

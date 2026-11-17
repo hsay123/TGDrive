@@ -55,9 +55,15 @@ no UI redesign. Each item below needs its own issue, test plan and commit.
     - Electron 30–45 contains multiple breaking changes (e.g. sandboxed preload globals,
       `ProtocolResponse.session = null`, various webPreferences renames) that each need a
       code review and smoke test, not a version bump.
-    This branch stays on Electron 29 so the packaging/release work is not blocked. Schedule
-    the upgrade separately with dependency + API migration, full QA re-run, and a new min-OS
-    table in `docs/FACTS_FOR_WEBSITE.md`.
+    Re-attempted 2026-11-17 on a separate local branch `upgrade/electron-45` (commit c316e1f,
+    NOT pushed): bumping to electron 45.3.3 + electron-builder 26.18.0 + @electron/rebuild 4.2.1
+    resolves the ABI-detection problem, but `better-sqlite3@9.6.0` then fails to compile against
+    Electron 45's V8 headers (`v8::Object::Set` signature change, ABI 150). `keytar` and `sharp`
+    need the same compatibility check, plus the Electron 30-45 API review above. Stopped as
+    non-mechanical per the upgrade criterion; 20 unit tests and four-runner smoke were not
+    reached. This branch stays on Electron 29. Schedule the upgrade as its own project with
+    native-module upgrades, API migration, full QA re-run, and a new min-OS table in
+    `docs/FACTS_FOR_WEBSITE.md`.
 12. **Code signing / notarization** — Windows SignPath Foundation or Azure Trusted Signing;
     macOS Developer ID + notarization (needs an `afterSign` hook + Apple credentials).
     Builds work unsigned; see `docs/RELEASE_PROCESS.md`.
