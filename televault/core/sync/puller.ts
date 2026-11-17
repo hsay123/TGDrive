@@ -6,7 +6,7 @@ import { getClient } from '../telegram/client'
 import { getChannelEntity } from '../telegram/channels'
 import { withRetry } from '../telegram/ratelimit'
 import { getSetting, setSetting } from '../db/settings.db'
-import { getDb } from '../db/db'
+import { backupDatabaseBeforePull, getDb } from '../db/db'
 import { deserializeIndex } from './indexer'
 
 export async function pullIndex(): Promise<void> {
@@ -36,6 +36,10 @@ export async function pullIndex(): Promise<void> {
     const buffer = await fs.promises.readFile(tempPath)
     const snapshot = deserializeIndex(buffer)
     const db = getDb()
+
+    // Safety copy before the full replace below. If this throws, pullIndex
+    // fails before touching any live rows and records a failed sync_log entry.
+    await backupDatabaseBeforePull()
 
     const rebuild = db.transaction(() => {
       db.prepare('DELETE FROM chunks').run()
