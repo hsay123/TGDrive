@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { extractVideoFrame } from '../utils/videoThumbnail'
+import { tvFileUrl } from '../lib/tvfile'
 
 export function useVideoThumbnail(
   fileId: string,
@@ -16,8 +17,7 @@ export function useVideoThumbnail(
 
     // Use existing thumbnail if already generated
     if (existingThumbnailPath) {
-      const filename = existingThumbnailPath.split(/[/\\]/).pop()
-      setThumbUrl(`tvfile://thumbnails/${filename}`)
+      setThumbUrl(tvFileUrl('thumbnails', existingThumbnailPath))
       return
     }
 
@@ -34,8 +34,7 @@ export function useVideoThumbnail(
           throw new Error(result.error ?? 'Could not cache video for thumbnail')
         }
 
-        const filename = result.data.split(/[/\\]/).pop()
-        const videoUrl = `tvfile://preview-cache/${filename}`
+        const videoUrl = tvFileUrl('preview-cache', result.data)
 
         const dataUrl = await extractVideoFrame(videoUrl, 1.0)
         if (cancelled || !dataUrl) return

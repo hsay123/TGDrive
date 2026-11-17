@@ -73,8 +73,44 @@ jobs:
       - name: Build unpacked app
         run: npm run build:dir
 
-      - name: Packaged-app smoke test
+      - name: Build Windows NSIS installer
+        if: runner.os == 'Windows'
+        run: npx electron-builder --win --x64
+
+      - name: Packaged-app smoke test (unpacked)
+        if: runner.os != 'Windows'
         run: ${{ matrix.smoke }}
+
+      # Users run the installed app, not win-unpacked. Install NSIS silently
+      # into a path WITH A SPACE to exercise Windows path handling too.
+      - name: Install and smoke-test the Windows installer
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $installer = (Resolve-Path 'release/TeleVault-windows-x64.exe').Path
+          # NSIS consumes the rest of the argument line after /D=. Keep the
+          # path free of spaces so it cannot be split or quoted by CreateProcess.
+          $installDir = Join-Path $env:RUNNER_TEMP 'TeleVaultSmoke'
+          if (Test-Path $installDir) { Remove-Item -Recurse -Force $installDir }
+          # /S first, /D=<dir> last, passed as one literal unquoted argument line.
+          $proc = Start-Process -FilePath $installer -ArgumentList "/S /D=$installDir" -Wait -PassThru
+          if ($proc.ExitCode -ne 0) { throw "NSIS installer exited $($proc.ExitCode)" }
+          $installedExe = Get-ChildItem -Path $installDir -Filter 'TeleVault.exe' -Recurse -File -ErrorAction SilentlyContinue |
+            Select-Object -First 1 -ExpandProperty FullName
+          if (-not $installedExe) {
+            Write-Host "Expected install dir: $installDir"
+            Write-Host "TeleVault* dirs under $($env:RUNNER_TEMP):"
+            Get-ChildItem -Path $env:RUNNER_TEMP -Directory -Filter 'TeleVault*' -ErrorAction SilentlyContinue |
+              ForEach-Object {
+                Write-Host $_.FullName
+                Get-ChildItem -Path $_.FullName -Recurse -ErrorAction SilentlyContinue |
+                  ForEach-Object { Write-Host "  $($_.FullName)" }
+              }
+            throw "Installed app not found under $installDir"
+          }
+          Write-Host "Smoke-testing installed exe: $installedExe"
+          $env:TELEVAULT_SMOKE_EXE = $installedExe
+          npm run test:smoke
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
