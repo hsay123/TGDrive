@@ -62,11 +62,29 @@ Every claim below is marked **CONFIRMED** (with the file and line proving it) or
 | Destination | When | Evidence |
 |---|---|---|
 | **Telegram MTProto servers** | Login, channel setup, every upload/download/sync | `core/telegram/client.ts:89-97` (`new TelegramClient(...)`); auth `core/telegram/auth.ts:124-148`; uploader/downloader modules. This is the app's primary and intended network use. |
-| **GitHub releases feed** (`github.com/hsay123/TGDrive`, via `electron-updater`) | Automatic check ~5 s after launch, plus manual "check for updates" click | `electron/updater.ts:37-41` (automatic) and `:86-90` (manual); provider/owner/repo at `electron-builder.yml:71-74`. No file content is sent — it is an update metadata request. |
+| **GitHub release metadata + installer downloads** (`github.com/hsay123/TGDrive`, via `electron-updater@6.8.9`) | Automatic metadata check ~5 s after launch, manual check, and manual download only | `electron/updater.ts:38-44` (automatic), `:85-97` (manual); provider at `electron-builder.yml:87-91`. Exact URLs and identifiers below. |
 | **OS browser via `shell.openExternal`** | Only when a link is clicked / a link-open IPC is invoked | `electron/main.ts:62,75` (window open + will-navigate) and `electron/ipc/setup.ipc.ts:7-9` (`system:openExternal`). User-initiated. |
 | `tvfile://` local resource fetch | Preview rendering | `src/components/files/FilePreview.tsx:94` — **local**, not outbound. |
 
 **NOT FOUND:** analytics, crash reporting, telemetry, a license server, or any payment endpoint. No `sentry`/`posthog`/`analytics` dependency in `package.json`; zero source references to `LICENSE_SERVER_URL` / `LICENSE_SERVER_SECRET` (see the local-only audit at `.local-audit/02-license-gating.md`). No local HTTP server exists in production (the orphaned `server/` tree was removed in this branch).
+
+### 5a. Update checks — concrete behaviour
+
+All facts below are from the shipped config and the installed `electron-updater@6.8.9` source; they are needed for any website copy about updates.
+
+| Question | Answer | Evidence |
+|---|---|---|
+| Provider / account / channel | GitHub, owner `hsay123`, repo `TGDrive`, `releaseType: release` (stable only) | `electron-builder.yml:87-91` |
+| Exact URLs requested | `https://github.com/hsay123/TGDrive/releases.atom` (Atom feed) → `.../releases/latest` (fallback) → `.../releases/download/<tag>/latest*.yml` (channel file) → the installer URL listed in that file | `electron-updater/out/providers/GitHubProvider.js:43,118,161-162,183-185`; `builder-util-runtime/out/publishOptions.js:7-8` |
+| Automatic download? | **No.** `autoDownload = false`; a download starts only on the explicit `updater:download` IPC | `electron/updater.ts:8,92-97` |
+| Automatic install? | Only on quit, and only **after** the user has explicitly downloaded: `autoInstallOnAppQuit = true`; `quitAndInstall()` is behind a separate IPC | `electron/updater.ts:9,100-103` |
+| Identifiers sent | `User-Agent: electron-builder`, `Cache-Control: no-cache`, and `x-user-staging-id` — a random UUIDv5 generated once and stored at `<userData>/.updaterId`. No auth token is configured. | `builder-util-runtime/out/httpExecutor.js:496-507`; `electron-updater/out/AppUpdater.js:386-387,501-521` |
+| User data sent | Only the metadata request itself. No Telegram data, file names, API credentials, or file contents are attached to update requests. | `electron/updater.ts:38-44,85-97` (no payload is passed) |
+| Offline / failed check | Silent and non-fatal: the rejection is caught and written via `electron-log` (`log.warn`); no dialog or toast. The renderer's only visible sign is a grey status-bar version label whose tooltip carries the error message. | `electron/updater.ts:39-43,73-76`; `src/components/layout/StatusBar.tsx:136-160` |
+| Unsigned builds | Installers are unsigned and no custom update-code-signature verifier is configured. Transport is HTTPS to GitHub, but OS SmartScreen/Gatekeeper warnings still apply. | `electron-builder.yml` (no signing config); `electron/updater.ts` (no verifier); `README.md` "Signing" |
+| Release published today | None. A local `release/latest-linux.yml` exists, but no tag and no GitHub Release exist, so the automatic check currently just logs a failure. | `gh release list` and `git ls-remote --tags origin` (both empty, 2026-11-17) |
+
+**Proposal only — NOT implemented:** make updates strictly *notify-only*. The app already has `autoDownload = false`; additionally set `autoInstallOnAppQuit = false`, and make the 5 s automatic check opt-in via a setting. The user would see "vX available" and explicitly choose to check, download, and restart. Recorded in `docs/FOLLOW_UPS.md`; no code change is part of this documentation pass.
 
 ## 6. Keytar / OS credential store, and Linux with no keyring
 
@@ -85,9 +103,9 @@ Derived from the Electron version currently in the tree. **Verified** against th
 
 | Statement | Status | Evidence |
 |---|---|---|
-| Windows, macOS and Linux targets are configured | **CONFIRMED** | `electron-builder.yml:24-69` (`mac` dmg+zip `25-26`, `win` nsis `37-39`, `linux` AppImage+deb `58-61`) |
-| RPM target is configured | **NOT FOUND** (to be added in Phase 4) | `electron-builder.yml:58-61` lists only AppImage and deb |
-| Renderer is Electron (Chromium) | **CONFIRMED** | `electron: ^29.1.4` in `package.json`; `electron/main.ts:43` `BrowserWindow` |
+| Windows, macOS and Linux targets are configured | **CONFIRMED** | `electron-builder.yml:26-29` (`mac` dmg+zip), `:43-44` (`win` nsis), `:69-75` (`linux` AppImage+deb+rpm) |
+| RPM target is configured | **CONFIRMED** (CI-only build) | `electron-builder.yml:74` lists `rpm`; built on `ubuntu-latest` (RPM 4.x), not on the RPM 6 host — see `docs/RELEASE_PROCESS.md` |
+| Renderer is Electron (Chromium) | **CONFIRMED** | `electron: ^29.1.4` in `package.json`; `electron/main.ts` `BrowserWindow` |
 | Native modules are bundled | **CONFIRMED** | `better-sqlite3`, `keytar`, `sharp` in `package.json`; `postinstall` runs `electron-rebuild`; `asarUnpack` at `electron-builder.yml:17-20` |
 
 **Minimum supported OS versions for the current Electron 29:**
@@ -109,4 +127,4 @@ Derived from the Electron version currently in the tree. **Verified** against th
 
 ## Unsafe claims to avoid until code changes
 
-"All data encrypted", "zero-knowledge", "metadata privacy", "unlimited storage", "public share links", "resumable uploads", "version history", "tags", "pro plan", "1.9 GB file limit", "notarized / signed builds" (builds are currently unsigned — see `docs/RELEASE_HANDOFF.md`, TBD after the first CI run).
+"All data encrypted", "zero-knowledge", "metadata privacy", "unlimited storage", "public share links", "resumable uploads", "version history", "tags", "pro plan", "1.9 GB file limit", "notarized / signed builds" (builds are currently unsigned — see `docs/RELEASE_PROCESS.md`), or "automatic updates" (updates are check-and-notify only; downloads are user-initiated).

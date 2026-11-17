@@ -24,9 +24,13 @@ xcode-select --install
 ## Step 1: Clone the repository
 
 ```bash
-git clone https://github.com/yourname/televault
-cd televault
+git clone https://github.com/hsay123/TGDrive.git
+cd TGDrive/televault
 ```
+
+The Electron app is the `televault/` subdirectory; CI workflows are at the
+repository root in `.github/workflows/`. Run all `npm` commands from
+`TGDrive/televault`.
 
 ---
 
@@ -67,6 +71,10 @@ TELEGRAM_API_HASH=EXAMPLE_API_HASH_NOT_A_REAL_VALUE   # ← your api_hash from s
 ```
 
 Leave everything else as default for local development.
+
+`.env` is read **only in development**. A packaged build ignores any `.env` in
+its working directory and collects the API credentials on first run, so no
+credentials are ever bundled into an installer.
 
 ---
 
