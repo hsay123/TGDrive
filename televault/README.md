@@ -30,6 +30,17 @@ No monthly storage bills. Your files, your Telegram, your control.
 
 ---
 
+## Known issues in this beta
+
+- **Encryption key loss is permanent.** If you lose the key stored in your OS keychain, encrypted files cannot be read. This beta cannot export or import a recovery key, and encryption is disabled when no secure key store is available (e.g. Linux without a keyring). Only enable encryption if you can keep the key safe.
+- **"Remove from TeleVault" does not delete from Telegram.** It removes the file from TeleVault only. Its data stays in your Telegram until you delete the messages there.
+- **Sync is last-writer-wins.** A device with an older index can overwrite newer local metadata on pull. A local DB backup is taken before each full replace, but per-item conflict resolution is not implemented yet.
+- **Trash expiry is local-only.** After 30 days the local references are purged at startup and daily; the underlying Telegram data is left in your account.
+- **OS warnings are expected.** Builds are not notarized, so Windows SmartScreen and macOS Gatekeeper will warn on first launch.
+- **Version history and tags are not available yet**, and share links only work for users who can access your private Telegram channels.
+
+---
+
 ## Quick Start
 
 ### 1. Get Telegram API credentials
