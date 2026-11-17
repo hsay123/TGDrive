@@ -104,6 +104,22 @@ try {
   console.log('[smoke] PASS')
 } catch (err) {
   console.error('[smoke] FAIL:', err.message)
+  // Probe: does loadFile work once the window is fully up? If so, the startup
+  // call in createWindow() is being dropped on this platform.
+  if (app) {
+    try {
+      const nav = await app.evaluate(async (e) => {
+        const w = e.BrowserWindow.getAllWindows()[0]
+        if (!w) return 'no window'
+        const p = e.app.getAppPath().replace(/\//g, '\\') + '\\dist\\index.html'
+        await w.loadFile(p)
+        return w.webContents.getURL()
+      })
+      console.error('[smoke] reload-via-evaluate URL:', nav)
+    } catch (e) {
+      console.error('[smoke] reload-via-evaluate failed:', e.message)
+    }
+  }
   // Diagnostics: show what the app actually rendered so a CI-only failure can
   // be diagnosed from the log without needing the runner machine.
   if (app) {
