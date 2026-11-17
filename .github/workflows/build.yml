@@ -90,11 +90,20 @@ jobs:
           $installer = (Resolve-Path 'release/TeleVault-windows-x64.exe').Path
           $installDir = Join-Path $env:RUNNER_TEMP 'TeleVault Smoke Install'
           if (Test-Path $installDir) { Remove-Item -Recurse -Force $installDir }
-          # NSIS silent flags: /S first, /D=<dir> last and unquoted.
-          $proc = Start-Process -FilePath $installer -ArgumentList @('/S', "/D=$installDir") -Wait -PassThru
+          # NSIS needs /S first and /D=<dir> last, UNQUOTED even when the path
+          # has spaces. A PowerShell -ArgumentList array would quote the path,
+          # so pass one literal argument line instead.
+          $proc = Start-Process -FilePath $installer -ArgumentList "/S /D=$installDir" -Wait -PassThru
           if ($proc.ExitCode -ne 0) { throw "NSIS installer exited $($proc.ExitCode)" }
-          $installedExe = Join-Path $installDir 'TeleVault.exe'
-          if (-not (Test-Path $installedExe)) { throw "Installed app not found: $installedExe" }
+          # electron-builder may place the exe at the install root or one level
+          # down; locate it rather than assuming an exact layout.
+          $installedExe = Get-ChildItem -Path $installDir -Filter 'TeleVault.exe' -Recurse -File -ErrorAction SilentlyContinue |
+            Select-Object -First 1 -ExpandProperty FullName
+          if (-not $installedExe) {
+            Write-Host "Install tree under $installDir:"
+            if (Test-Path $installDir) { Get-ChildItem -Path $installDir -Recurse | ForEach-Object { Write-Host $_.FullName } }
+            throw "Installed app not found under $installDir"
+          }
           Write-Host "Smoke-testing installed exe: $installedExe"
           $env:TELEVAULT_SMOKE_EXE = $installedExe
           npm run test:smoke
