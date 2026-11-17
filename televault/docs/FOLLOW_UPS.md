@@ -103,7 +103,7 @@ status index, not a copy of the audit.
 | B2 | Payment / license activation | Accepted out of scope (Gate 1: free and open source) |
 | B3 | Last-writer-wins full-replace sync | Open — data integrity |
 | B4 | Permanent delete leaves Telegram data | Open |
-| B5 | Trash never expires | Open |
+| B5 | Trash never expires | Fixed (item 5) — expired local rows purged at startup + daily; Telegram data intentionally left alone |
 | B6 | Unsigned / notarized builds | Deferred — see item 12 |
 | B7 | Legal pages absent | Open — website work |
 

@@ -266,12 +266,14 @@ export function getTrashEntryChunks(entry: TrashEntry): Chunk[] {
 }
 
 /**
- * Remove the DB records for a permanently-deleted trash entry — the chunks,
- * versions, and the trash row itself, atomically.
+ * Remove the local DB records for a trash entry — the chunk/version references
+ * and the trash row itself, atomically.
  *
- * Callers MUST have already deleted the underlying Telegram messages and only
- * call this once that has succeeded. Deleting the DB rows first would leave
- * orphaned messages on Telegram with no record left to ever retry the cleanup.
+ * The manual "Remove from TeleVault" IPC path calls this only after its Telegram
+ * message deletions succeed. The 30-day expiry sweep calls it deliberately
+ * WITHOUT touching Telegram: consistent with the UI wording, expired rows lose
+ * their local references while the file data stays in Telegram until the user
+ * deletes the messages there.
  */
 export function removeTrashEntryRecords(entry: TrashEntry): void {
   const db = getDb()
@@ -304,9 +306,9 @@ export function permanentlyDeleteTrashEntry(trashId: string): {
 }
 
 /**
- * All trash rows that have passed their retention window (`expires_at`).
- * The expiry sweep runs each returned row through the same permanent-delete
- * path as the manual "Delete permanently" flow.
+ * All trash rows that have passed their 30-day retention window (`expires_at`,
+ * set to deleted_at + 30 days in files.db.ts). The expiry sweep purges only the
+ * local DB references for these rows; it never deletes Telegram messages.
  */
 export function getExpiredTrashEntries(now: number = Date.now()): TrashEntry[] {
   const db = getDb()
