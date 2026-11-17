@@ -75,7 +75,8 @@ jobs:
 
       - name: Build Windows NSIS installer
         if: runner.os == 'Windows'
-        run: npx electron-builder --win --x64
+        # electron-builder 26 auto-publishes on push-to-main without this flag.
+        run: npx electron-builder --win --x64 --publish never
 
       - name: Packaged-app smoke test (unpacked)
         if: runner.os != 'Windows'
