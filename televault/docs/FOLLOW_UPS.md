@@ -44,8 +44,20 @@ no UI redesign. Each item below needs its own issue, test plan and commit.
 
 ## Release engineering
 
-11. **Electron upgrade** — Electron 29 is EOL; upgrade to a supported stable major in its
-    own commit after Phase 3 tests (tracked separately in this branch's plan).
+11. **Electron upgrade — BLOCKED, needs its own project (attempted 2026-11-17, reverted).**
+    Electron 29 is EOL; a jump to a supported major (e.g. 45.3.3) is **not mechanical** and
+    was deliberately not forced onto this packaging branch. Evidence from the attempt:
+    - `electron-rebuild@3.2.9`'s bundled `node-abi` cannot detect Electron 45's ABI 150
+      (`Could not detect abi for version 45.3.3`), so native modules (`better-sqlite3`,
+      `keytar`) cannot be rebuilt. Requires moving to `@electron/rebuild` / updated `node-abi`.
+    - `electron-builder@24.13.3` predates Electron 45 and would need its own upgrade
+      (v27 requires Node >= 22.12), plus a fresh native-module compatibility check.
+    - Electron 30–45 contains multiple breaking changes (e.g. sandboxed preload globals,
+      `ProtocolResponse.session = null`, various webPreferences renames) that each need a
+      code review and smoke test, not a version bump.
+    This branch stays on Electron 29 so the packaging/release work is not blocked. Schedule
+    the upgrade separately with dependency + API migration, full QA re-run, and a new min-OS
+    table in `docs/FACTS_FOR_WEBSITE.md`.
 12. **Code signing / notarization** — Windows SignPath Foundation or Azure Trusted Signing;
     macOS Developer ID + notarization. Builds work unsigned; see `docs/RELEASE_HANDOFF.md`.
 13. **macOS universal build** — attempt `universal` in CI; if native modules block it, keep
