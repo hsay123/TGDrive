@@ -56,6 +56,7 @@ Every claim below is marked **CONFIRMED** (with the file and line proving it) or
 | Version history UI | **NOT FOUND** | Backend exists (`electron/ipc/files.ipc.ts:376-385`); UI is "Coming soon" (`src/components/files/ContextMenu.tsx:172`) |
 | Tags | **NOT FOUND** | `src/components/layout/Sidebar.tsx:226` ("Tags coming soon") |
 | Public share links usable by non-users | **NOT FOUND** | `files:shareLink` returns a private-channel URL `https://t.me/c/<id>/<msg>` (`electron/ipc/files.ipc.ts:364-372`) |
+| "Delete permanently" removes all Telegram data | **NOT FOUND — wording corrected** | The trash-view action is now "Remove from TeleVault" with the text "This removes the file from TeleVault. Its data stays in your Telegram until you delete the messages there." (`src/components/files/ContextMenu.tsx`). The backend does attempt `messages.delete` for known chunk messages (`electron/ipc/files.ipc.ts:70-125`), but caption metadata, index snapshots and version rows are not a guaranteed complete purge; see the true-delete assessment in the item-3 PR. |
 
 ## 5. Outbound network destinations (complete list)
 

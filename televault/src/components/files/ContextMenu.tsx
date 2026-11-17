@@ -200,10 +200,14 @@ export function ContextMenu({ x, y, entries, onClose }: ContextMenuProps) {
       dividerBefore: true,
     })
     items.push({
-      label: bulkLabel('Delete permanently'),
+      label: bulkLabel('Remove from TeleVault'),
       icon: <Trash2 className="h-3.5 w-3.5" />,
       action: () => {
-        if (!confirm(`Permanently delete ${targetIds.length === 1 ? 'this file' : `these ${targetIds.length} items`}? This cannot be undone.`)) return
+        const subject = targetIds.length === 1 ? 'this file' : `these ${targetIds.length} items`
+        if (!confirm(
+          `Remove ${subject} from TeleVault? This removes the file from TeleVault. ` +
+          'Its data stays in your Telegram until you delete the messages there.'
+        )) return
         run(async () => {
           for (const id of targetIds) {
             const result = await window.televault.files.delete(id, true)
