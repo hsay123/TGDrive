@@ -73,6 +73,19 @@ let window
 try {
   app = await electron.launch({ executablePath, args, env })
   window = await app.firstWindow({ timeout: 30000 })
+  // Capture renderer-side failures in the main process global so they survive
+  // even when Playwright's Page target is stale on Windows.
+  await app.evaluate((electron) => {
+    const win = electron.BrowserWindow.getAllWindows()[0]
+    if (!win) return
+    globalThis.__smokeLogs = []
+    win.webContents.on('console-message', (_ev, level, message) => {
+      globalThis.__smokeLogs.push(`console:${level}:${message}`)
+    })
+    win.webContents.on('did-fail-load', (_ev, code, desc, url) => {
+      globalThis.__smokeLogs.push(`did-fail-load:${code}:${desc}:${url}`)
+    })
+  }).catch(() => {})
   window.on('console', (msg) => {
     if (msg.type() === 'error') consoleErrors.push(msg.text())
   })
@@ -131,6 +144,12 @@ try {
 } catch (err) {
   console.error('[smoke] FAIL:', err.message)
   if (app) {
+    try {
+      const logs = await app.evaluate(() => globalThis.__smokeLogs || [])
+      console.error('[smoke] renderer logs:', JSON.stringify(logs.slice(-20)))
+    } catch {
+      /* ignore */
+    }
     try {
       const dom = await app.evaluate(async (electron) => {
         const win = electron.BrowserWindow.getAllWindows()[0]
