@@ -303,6 +303,22 @@ export function permanentlyDeleteTrashEntry(trashId: string): {
   return { fileId: entry.file_id ?? '', chunks }
 }
 
+/** True when any trashed file snapshot records encrypted contents. */
+export function hasEncryptedTrashRecords(): boolean {
+  const db = getDb()
+  const rows = db
+    .prepare('SELECT file_data FROM trash WHERE file_data IS NOT NULL')
+    .all() as Array<{ file_data: string }>
+  return rows.some((row) => {
+    try {
+      const parsed = JSON.parse(row.file_data) as { is_encrypted?: number }
+      return parsed.is_encrypted === 1
+    } catch {
+      return false
+    }
+  })
+}
+
 /**
  * All trash rows that have passed their retention window (`expires_at`).
  * The expiry sweep runs each returned row through the same permanent-delete

@@ -97,6 +97,7 @@ const televault: TeleVaultAPI = {
     set: (key, value) => ipcRenderer.invoke('settings:set', key, value),
     getAll: () => ipcRenderer.invoke('settings:getAll'),
     getKeyFingerprint: () => ipcRenderer.invoke('settings:getKeyFingerprint'),
+    encryptionStatus: () => ipcRenderer.invoke('settings:encryptionStatus'),
   },
   system: {
     openFilePicker: () => ipcRenderer.invoke('system:openFilePicker'),

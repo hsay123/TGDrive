@@ -19,7 +19,7 @@ import {
   type ChunkStream,
 } from '../fs/chunker'
 import { encryptFile } from '../crypto/encrypt'
-import { getEncryptionKey } from '../crypto/keystore'
+import { getKeyForEncryption } from '../crypto/key-guard'
 // @ts-ignore
 import { CustomFile } from 'telegram/client/uploads'
 
@@ -213,7 +213,7 @@ export async function uploadFile(
     // ── Encryption: write ONE temp file, then chunk from it ──────────────
     let uploadPath = localPath
     if (encrypted) {
-      const key = await getEncryptionKey()
+      const key = await getKeyForEncryption()
       tempEncPath = path.join(app.getPath('userData'), `tvenc-${fileId}`)
       await encryptFile(localPath, tempEncPath, key)
       uploadPath = tempEncPath

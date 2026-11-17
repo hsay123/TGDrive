@@ -5,6 +5,7 @@ import {
   getAllSettings,
 } from '../../core/db/settings.db'
 import { getKeyFingerprint } from '../../core/crypto/keystore'
+import { checkEncryptionReadiness } from '../../core/crypto/key-guard'
 import { refreshAutoSync } from './sync.ipc'
 import { ipcResult } from './helpers'
 
@@ -28,5 +29,9 @@ export function registerSettingsIpc(ipcMain: IpcMain): void {
 
   ipcMain.handle('settings:getKeyFingerprint', async () =>
     ipcResult(() => getKeyFingerprint())
+  )
+
+  ipcMain.handle('settings:encryptionStatus', async () =>
+    ipcResult(() => checkEncryptionReadiness())
   )
 }

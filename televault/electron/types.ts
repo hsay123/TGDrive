@@ -5,9 +5,11 @@ import type { VersionRow } from './ipc/files.ipc'
 import type { TrashRow } from '../core/db/trash.db'
 import type { IpcResult } from './ipc/helpers'
 import type { UpdateStatus } from './updater'
+import type { EncryptionReadiness } from '../core/crypto/key-guard'
 
 export type { TGUser, VFSFile, VFSFolder, VFSEntry, SyncStatus, VersionRow, TrashRow, IpcResult }
 export type { UpdateStatus, UpdatePhase } from './updater'
+export type { EncryptionReadiness } from '../core/crypto/key-guard'
 
 export interface TeleVaultAPI {
   auth: {
@@ -95,6 +97,7 @@ export interface TeleVaultAPI {
     set: (key: string, value: string) => Promise<IpcResult<void>>
     getAll: () => Promise<IpcResult<Record<string, string>>>
     getKeyFingerprint: () => Promise<IpcResult<string>>
+    encryptionStatus: () => Promise<IpcResult<EncryptionReadiness>>
   }
   system: {
     openFilePicker: () => Promise<IpcResult<{ path: string; size: number }[]>>
