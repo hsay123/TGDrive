@@ -116,8 +116,6 @@ export default function Settings() {
     return new Date(ts).toLocaleDateString()
   }
 
-  const initials = user?.firstName?.[0]?.toUpperCase() ?? 'U'
-
   return (
     <div className="min-h-screen bg-gray-950 p-8">
       <div className="mx-auto max-w-2xl">

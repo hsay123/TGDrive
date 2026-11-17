@@ -147,6 +147,7 @@ export const useFilesStore = create<FilesStore>((set, get) => ({
           updatedAt: t.deletedAt,
           thumbnailPath: t.thumbnailPath,
           starred: 0,
+          isHidden: 0,
         }))
         set({ entries, isLoading: false })
       } else {

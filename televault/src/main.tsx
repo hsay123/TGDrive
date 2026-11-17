@@ -1,4 +1,4 @@
-window.onerror = (msg, src, line, col, err) => {
+window.onerror = (msg, src, line, _col, err) => {
   document.body.style.background = '#1a1a2e'
   document.body.style.color = '#ff6b6b'
   document.body.style.fontFamily = 'monospace'

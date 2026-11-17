@@ -107,6 +107,9 @@ const fileCardComparator = (prev: FileCardProps, next: FileCardProps): boolean =
   )
 }
 
+type ThumbState = 'idle' | 'loading' | 'done' | 'failed'
+
+// memo() comparator above assumes VFSFile/VFSFolder come from src/types.
 export const FileCard = memo(
   function FileCard({
   entry,
@@ -117,14 +120,22 @@ export const FileCard = memo(
 }: FileCardProps) {
   const isFolder = entry.type === 'folder'
   const isVideo = entry.type === 'file' && entry.mimeType?.startsWith('video/')
+  // thumbnailPath only exists on VFSFile — narrow once here so the rest of the
+  // component does not have to re-check entry.type at every use site.
+  const thumbnailPath = entry.type === 'file' ? entry.thumbnailPath : null
 
   // ── Video thumbnail state ──────────────────────────────────────────────────
   const [videoThumb, setVideoThumb] = useState<string | null>(null)
-  const [thumbState, setThumbState] = useState<'idle' | 'loading' | 'done' | 'failed'>('idle')
+  const [thumbState, setThumbState] = useState<ThumbState>('idle')
   const cardRef = useRef<HTMLDivElement>(null)
   const visibleRef = useRef(false)
-  const thumbStateRef = useRef(thumbState)
+  const thumbStateRef = useRef<ThumbState>(thumbState)
   thumbStateRef.current = thumbState
+
+  // Read through a function so TS control-flow narrowing does not freeze the
+  // ref at 'idle': the ref is re-synced by the render that setThumbState
+  // schedules, which happens inside the await below and is invisible to TS.
+  const readThumbState = (): ThumbState => thumbStateRef.current
 
   // Reset when the card slot shows a different file
   useEffect(() => {
@@ -134,8 +145,8 @@ export const FileCard = memo(
 
   const generateThumb = useCallback(async () => {
     if (!isVideo) return
-    if (entry.thumbnailPath) return
-    if (thumbStateRef.current !== 'idle') return
+    if (thumbnailPath) return
+    if (readThumbState() !== 'idle') return
 
     setThumbState('loading')
     let released = false
@@ -144,7 +155,7 @@ export const FileCard = memo(
       await acquireThumbSlot()
 
       // Double-check state after waiting in queue (card may have unmounted / file changed)
-      if (thumbStateRef.current !== 'loading') {
+      if (readThumbState() !== 'loading') {
         releaseThumbSlot()
         released = true
         return
@@ -199,11 +210,11 @@ export const FileCard = memo(
     } finally {
       if (!released) releaseThumbSlot()
     }
-  }, [entry.id, entry.thumbnailPath, isVideo])
+  }, [entry.id, thumbnailPath, isVideo])
 
   // Trigger generation only when the card becomes visible
   useEffect(() => {
-    if (!isVideo || entry.thumbnailPath) return
+    if (!isVideo || thumbnailPath) return
 
     const el = cardRef.current
     if (!el) return
@@ -221,7 +232,7 @@ export const FileCard = memo(
     )
     observer.observe(el)
     return () => observer.disconnect()
-  }, [isVideo, entry.thumbnailPath, generateThumb])
+  }, [isVideo, thumbnailPath, generateThumb])
 
   // Allow the "Generate Thumbnail" context-menu action to force a retry
   useEffect(() => {
