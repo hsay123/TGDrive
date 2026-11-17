@@ -17,7 +17,9 @@ import { registerSystemAvatarIpc } from './ipc/system.ipc'
 import { registerRevealIpc } from './ipc/reveal.ipc'
 import { registerTrashExpiry } from './ipc/trash-expiry'
 
-config()
+// Only load .env in development. A packaged build must never be influenced by a
+// stray .env in the working directory, and no .env values are bundled.
+if (!app.isPackaged) config()
 
 protocol.registerSchemesAsPrivileged([
   {

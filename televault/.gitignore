@@ -1,12 +1,20 @@
 node_modules
-dist
-dist-electron
-release
+dist/
+dist-electron/
+release/
 .env
+.env.*
+!.env.example
 *.session
 *.db
 thumbnails/
 .DS_Store
+
+# Signing material
+*.pem
+*.p12
+*.pfx
+*.key
 
 # Local-only audit notes (never publish)
 .local-audit/
