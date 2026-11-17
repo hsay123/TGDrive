@@ -6,17 +6,43 @@
  *   node scripts/smoke-test.mjs [path-to-electron-executable]
  *   # or set ELECTRON_APP=<path>
  *
- * On a headless Linux runner wrap with: xvfb-run -a npm run test:smoke
+ * The default executable is auto-detected per platform from electron-builder's
+ * unpacked output. On headless Linux wrap with: xvfb-run -a npm run test:smoke
  */
 import { _electron as electron } from 'playwright-core'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 
-const executablePath =
-  process.argv[2] ||
-  process.env.ELECTRON_APP ||
-  path.join(process.cwd(), 'release', 'linux-unpacked', 'televault')
+const RELEASE = path.join(process.cwd(), 'release')
+
+/** Unpacked output directories electron-builder produces for each platform. */
+function defaultExecutable() {
+  const appName = 'TeleVault'
+  switch (process.platform) {
+    case 'win32':
+      return path.join(RELEASE, 'win-unpacked', `${appName}.exe`)
+    case 'darwin': {
+      // electron-builder names the .app dir mac / mac-arm64 / mac-universal.
+      for (const dir of ['mac', 'mac-arm64', 'mac-universal']) {
+        const candidate = path.join(
+          RELEASE,
+          dir,
+          `${appName}.app`,
+          'Contents',
+          'MacOS',
+          appName
+        )
+        if (fs.existsSync(candidate)) return candidate
+      }
+      return path.join(RELEASE, 'mac', `${appName}.app`, 'Contents', 'MacOS', appName)
+    }
+    default:
+      return path.join(RELEASE, 'linux-unpacked', 'televault')
+  }
+}
+
+const executablePath = process.argv[2] || process.env.ELECTRON_APP || defaultExecutable()
 
 if (!fs.existsSync(executablePath)) {
   console.error(`[smoke] executable not found: ${executablePath}`)
@@ -25,23 +51,26 @@ if (!fs.existsSync(executablePath)) {
 }
 
 // Isolate userData so the test always lands on the first-run /setup screen,
-// regardless of what a previous run left in ~/.config/TeleVault.
+// regardless of what a previous run left in the real config location.
+// --user-data-dir is honoured by Electron on all three OSes; XDG_CONFIG_HOME
+// is kept as a Linux-only extra.
 const userDataRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'tv-smoke-'))
-const env = { ...process.env, XDG_CONFIG_HOME: userDataRoot }
-if (process.platform === 'linux' && !env.DISPLAY) {
-  console.error('[smoke] no DISPLAY — run under xvfb-run -a on headless Linux')
+const env = { ...process.env }
+if (process.platform === 'linux') {
+  env.XDG_CONFIG_HOME = userDataRoot
+  if (!env.DISPLAY) {
+    console.error('[smoke] no DISPLAY — run under xvfb-run -a on headless Linux')
+  }
 }
+const args = [`--user-data-dir=${userDataRoot}`]
+if (process.platform === 'linux') args.push('--no-sandbox')
 
 const consoleErrors = []
 const pageErrors = []
 let app
 
 try {
-  app = await electron.launch({
-    executablePath,
-    args: ['--no-sandbox'],
-    env,
-  })
+  app = await electron.launch({ executablePath, args, env })
 
   const window = await app.firstWindow({ timeout: 30000 })
   window.on('console', (msg) => {
