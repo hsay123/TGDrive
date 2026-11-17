@@ -47,13 +47,18 @@ These are free and personal to your account. TeleVault uses them to connect as a
 **Download** the installer for your platform, or build from source:
 
 ```bash
-git clone https://github.com/yourname/televault
-cd televault
+git clone https://github.com/hsay123/TGDrive.git
+cd TGDrive/televault
 npm install
 cp .env.example .env
 # Edit .env: add your TELEGRAM_API_ID and TELEGRAM_API_HASH
 npm run dev
 ```
+
+> The app lives in the `televault/` subdirectory of the repository; GitHub
+> Actions workflows live at the **repo root** in `.github/workflows/`.
+> `.env` is read only in development — packaged builds collect API credentials
+> on first run instead.
 
 ### 3. First launch
 
@@ -139,9 +144,11 @@ macOS also needs notarization credentials to clear Gatekeeper; see
 
 ### Releasing
 
-Push a `v*.*.*` tag to build and publish all three platforms via GitHub Actions
-(`.github/workflows/release.yml`). `electron-updater` then serves updates to
-installed copies. Note the updater points at `hsay123/TGDrive` — change
+Pushing a `v*.*.*` tag builds all three platforms via GitHub Actions
+(`.github/workflows/release.yml`) and creates a **draft** GitHub release — a human
+must review and click Publish; nothing goes public automatically. The release is
+check-and-notify only: `electron-updater` looks for `latest*.yml` metadata at
+`hsay123/TGDrive`, and downloads start only when the user asks. Change
 `publish.owner` / `publish.repo` in `electron-builder.yml` if you fork this.
 
 ---
@@ -154,7 +161,8 @@ Electron · React · TypeScript · gramjs · better-sqlite3 · TailwindCSS · AE
 
 ## Contributing
 
-See [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md).
+See [docs/SETUP.md](docs/SETUP.md) for development setup and
+[docs/RELEASE_PROCESS.md](docs/RELEASE_PROCESS.md) for the release handoff.
 
 ## License
 

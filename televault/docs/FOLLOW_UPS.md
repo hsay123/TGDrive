@@ -81,3 +81,31 @@ no UI redesign. Each item below needs its own issue, test plan and commit.
     if local RPM builds are ever required.
 16. **Publish updated min-OS table** after the Electron upgrade — see
     `docs/FACTS_FOR_WEBSITE.md` section 7.
+17. **Make updates strictly notify-only (proposed, not implemented).** The app
+    already sets `autoDownload = false`; also set `autoInstallOnAppQuit = false`
+    and make the 5-second automatic check opt-in, so a user sees "vX available"
+    and explicitly chooses check / download / restart. Facts and evidence are in
+    `docs/FACTS_FOR_WEBSITE.md` section 5a. No code change was made here.
+18. **Keep the Windows first-run smoke honest.** The strict smoke now installs
+    the real NSIS installer into a path with a space and launches the installed
+    `TeleVault.exe` with `TELEVAULT_SMOKE=1` (PR #6). Diagnostics are gated on that
+    variable and write `tv-smoke.log`; with it unset there is no behaviour
+    change. Do not reintroduce an advisory/`continue-on-error` step.
+
+## Deferred launch blockers (IDs only)
+
+Full findings stay in `TeleVault_Launch_Readiness_Audit.md`; this is only a
+status index, not a copy of the audit.
+
+| ID | Short label | Status |
+|---|---|---|
+| B1 | Encryption key has no recovery path | Open — separate project |
+| B2 | Payment / license activation | Accepted out of scope (Gate 1: free and open source) |
+| B3 | Last-writer-wins full-replace sync | Open — data integrity |
+| B4 | Permanent delete leaves Telegram data | Open |
+| B5 | Trash never expires | Open |
+| B6 | Unsigned / notarized builds | Deferred — see item 12 |
+| B7 | Legal pages absent | Open — website work |
+
+First-run and Linux keyring problems are documented in
+`docs/TROUBLESHOOTING.md`.
