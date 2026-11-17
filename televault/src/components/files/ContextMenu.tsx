@@ -169,7 +169,7 @@ export function ContextMenu({ x, y, entries, onClose }: ContextMenuProps) {
     items.push({
       label: 'Version History',
       icon: <History className="h-3.5 w-3.5" />,
-      action: () => toast('Version history — coming soon (Pro feature)'),
+      action: () => toast('Coming soon'),
       disabled: true,
     })
     items.push({
