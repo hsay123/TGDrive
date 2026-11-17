@@ -126,10 +126,10 @@ jobs:
           set -euo pipefail
           codesign --force --deep --sign - --options runtime --timestamp=none \
             --entitlements build/entitlements.mac.adhoc.plist \
-            release/mac-x64/TeleVault.app
-          codesign --verify --deep --strict --verbose=2 release/mac-x64/TeleVault.app
+            release/mac/TeleVault.app
+          codesign --verify --deep --strict --verbose=2 release/mac/TeleVault.app
       - name: Build x64 DMG + ZIP from signed app
-        run: npx electron-builder --mac --x64 --publish never --prepackaged release/mac-x64/TeleVault.app
+        run: npx electron-builder --mac --x64 --publish never --prepackaged release/mac/TeleVault.app
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: release-mac-x64
