@@ -4,6 +4,23 @@ import { useFilesStore } from '../../store/files.store'
 import { useState, useEffect } from 'react'
 import clsx from 'clsx'
 import { STORAGE_LIMIT_LABEL } from '../../utils/constants'
+import { useUpdate } from '../../hooks/useUpdate'
+import type { UpdateState } from '../../hooks/useUpdate'
+
+function updateLabel(update: UpdateState, currentVersion: string): string {
+  switch (update.phase) {
+    case 'checking':
+      return 'Checking…'
+    case 'available':
+      return `v${update.version} available`
+    case 'downloading':
+      return `Downloading ${update.percent ?? 0}%`
+    case 'downloaded':
+      return 'Restart to update'
+    default:
+      return `v${currentVersion}`
+  }
+}
 
 function formatBytes(bytes: number): string {
   if (!bytes || bytes <= 0) return '0 B'
@@ -20,6 +37,23 @@ export function StatusBar() {
   const selectedIds = useFilesStore((s) => s.selectedIds)
   const [version, setVersion] = useState('0.1.0')
   const [storageUsed, setStorageUsed] = useState(0)
+  const update = useUpdate()
+
+  // One button, four behaviours, driven entirely by the updater phase.
+  const handleUpdateClick = () => {
+    switch (update.phase) {
+      case 'available':
+        update.download()
+        break
+      case 'downloaded':
+        update.install()
+        break
+      case 'downloading':
+        break
+      default:
+        update.check()
+    }
+  }
 
   useEffect(() => {
     window.televault.system.getAppVersion().then((r) => {
@@ -100,7 +134,27 @@ export function StatusBar() {
           <span className="text-gray-700">/</span>{' '}
           {STORAGE_LIMIT_LABEL}
         </span>
-        <span className="text-gray-600">v{version}</span>
+        <button
+          className={clsx(
+            'transition-colors',
+            update.phase === 'available' && 'text-violet-400 hover:text-violet-300',
+            update.phase === 'downloaded' && 'text-teal-400 hover:text-teal-300',
+            update.phase === 'downloading' && 'text-violet-400',
+            (update.phase === 'idle' || update.phase === 'not-available' || update.phase === 'error') &&
+              'text-gray-600 hover:text-gray-400'
+          )}
+          onClick={handleUpdateClick}
+          disabled={update.phase === 'checking' || update.phase === 'downloading'}
+          title={
+            update.phase === 'available'
+              ? `Version ${update.version} is available — click to download`
+              : update.phase === 'error'
+                ? (update.message ?? 'Update check failed')
+                : 'Check for updates'
+          }
+        >
+          {updateLabel(update, version)}
+        </button>
       </div>
     </div>
   )

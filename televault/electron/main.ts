@@ -10,14 +10,16 @@ import { registerFilesIpc } from './ipc/files.ipc'
 import { registerFoldersIpc } from './ipc/folders.ipc'
 import { registerSyncIpc } from './ipc/sync.ipc'
 import { registerSettingsIpc } from './ipc/settings.ipc'
-import { registerLicenseIpc } from './ipc/license.ipc'
-import { initUpdater, installUpdate } from './updater'
+import { registerSetupIpc } from './ipc/setup.ipc'
+import { initUpdater, installUpdate, registerUpdaterIpc } from './updater'
 import { ipcResult } from './ipc/helpers'
 import { registerSystemAvatarIpc } from './ipc/system.ipc'
 import { registerRevealIpc } from './ipc/reveal.ipc'
 import { registerTrashExpiry } from './ipc/trash-expiry'
 
-config()
+// Only load .env in development. A packaged build must never be influenced by a
+// stray .env in the working directory, and no .env values are bundled.
+if (!app.isPackaged) config()
 
 protocol.registerSchemesAsPrivileged([
   {
@@ -139,11 +141,12 @@ function registerAllIpc(): void {
   registerFoldersIpc(ipcMain)
   registerSyncIpc(ipcMain)
   registerSettingsIpc(ipcMain)
-  registerLicenseIpc(ipcMain)
+  registerSetupIpc(ipcMain)
   registerSystemIpc()
   registerSystemAvatarIpc()
   registerRevealIpc(ipcMain)
   registerTrashExpiry()
+  registerUpdaterIpc()
 }
 
 function isPathInsideDir(baseDir: string, targetPath: string): boolean {

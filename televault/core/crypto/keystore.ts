@@ -1,18 +1,18 @@
-import keytar from 'keytar'
 import crypto from 'crypto'
+import { getSecret, setSecret, deleteSecret } from './secure-store'
 
 const SERVICE = 'televault'
 const ACCOUNT = 'encryption-key'
 
 export async function getEncryptionKey(): Promise<Buffer> {
   try {
-    const existing = await keytar.getPassword(SERVICE, ACCOUNT)
+    const existing = await getSecret(SERVICE, ACCOUNT)
     if (existing) {
       return Buffer.from(existing, 'hex')
     }
 
     const newKey = crypto.randomBytes(32)
-    await keytar.setPassword(SERVICE, ACCOUNT, newKey.toString('hex'))
+    await setSecret(SERVICE, ACCOUNT, newKey.toString('hex'))
     return newKey
   } catch (error) {
     console.error('[keystore] getEncryptionKey error:', error)
@@ -23,7 +23,7 @@ export async function getEncryptionKey(): Promise<Buffer> {
 export async function rotateEncryptionKey(): Promise<Buffer> {
   try {
     const newKey = crypto.randomBytes(32)
-    await keytar.setPassword(SERVICE, ACCOUNT, newKey.toString('hex'))
+    await setSecret(SERVICE, ACCOUNT, newKey.toString('hex'))
     return newKey
   } catch (error) {
     console.error('[keystore] rotateEncryptionKey error:', error)
@@ -33,7 +33,7 @@ export async function rotateEncryptionKey(): Promise<Buffer> {
 
 export async function hasEncryptionKey(): Promise<boolean> {
   try {
-    const existing = await keytar.getPassword(SERVICE, ACCOUNT)
+    const existing = await getSecret(SERVICE, ACCOUNT)
     return existing !== null
   } catch (error) {
     console.error('[keystore] hasEncryptionKey error:', error)
@@ -53,7 +53,7 @@ export async function getKeyFingerprint(): Promise<string> {
 
 export async function deleteEncryptionKey(): Promise<void> {
   try {
-    await keytar.deletePassword(SERVICE, ACCOUNT)
+    await deleteSecret(SERVICE, ACCOUNT)
   } catch (error) {
     console.error('[keystore] deleteEncryptionKey error:', error)
     throw error

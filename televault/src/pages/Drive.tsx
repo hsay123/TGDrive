@@ -77,10 +77,10 @@ export default function Drive() {
         try {
           setChannelBanner('checking')
           const status = await window.televault.system.getChannelStatus()
-          if (status.ok && !status.data?.ready) {
+          if (status.success && status.data && !status.data.ready) {
             setChannelBanner('initializing')
             const result = await window.televault.system.initializeChannels()
-            if (result.ok) {
+            if (result.success) {
               setChannelBanner(null) // success — hide banner
             } else {
               setChannelError(result.error ?? 'Could not set up storage channels')
@@ -301,7 +301,7 @@ export default function Drive() {
                                   onDoubleClick={() => setPath(folder.path)}
                                   onContextMenu={(e) => {
                                     e.preventDefault()
-                                    let targets = [folder]
+                                    let targets: VFSEntry[] = [folder]
                                     if (selectedIds.has(folder.id)) {
                                       targets = displayEntries.filter((e) => selectedIds.has(e.id))
                                     } else {

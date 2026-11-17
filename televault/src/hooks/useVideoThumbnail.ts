@@ -28,10 +28,13 @@ export function useVideoThumbnail(
     async function generate() {
       try {
         // Download video to temp cache
-        const cachedPath = await window.televault.files.downloadToTemp(fileId)
+        const result = await window.televault.files.downloadToTemp(fileId)
         if (cancelled) return
+        if (!result.success || !result.data) {
+          throw new Error(result.error ?? 'Could not cache video for thumbnail')
+        }
 
-        const filename = cachedPath.split(/[/\\]/).pop()
+        const filename = result.data.split(/[/\\]/).pop()
         const videoUrl = `tvfile://preview-cache/${filename}`
 
         const dataUrl = await extractVideoFrame(videoUrl, 1.0)

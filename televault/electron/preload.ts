@@ -1,5 +1,6 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import type { TeleVaultAPI } from './types'
+import type { UpdateStatus } from './updater'
 
 const televault: TeleVaultAPI = {
   auth: {
@@ -114,22 +115,14 @@ const televault: TeleVaultAPI = {
     getPersistedUser: () => ipcRenderer.sendSync('system:getPersistedUser'),
   },
   updater: {
+    check: () => ipcRenderer.invoke('updater:check'),
+    download: () => ipcRenderer.invoke('updater:download'),
     install: () => ipcRenderer.invoke('updater:install'),
-    onAvailable: (callback) => {
-      const handler = () => callback()
-      ipcRenderer.on('updater:available', handler)
-      return () => ipcRenderer.removeListener('updater:available', handler)
-    },
-    onProgress: (callback) => {
-      const handler = (_event: Electron.IpcRendererEvent, percent: number) =>
-        callback(percent)
-      ipcRenderer.on('updater:progress', handler)
-      return () => ipcRenderer.removeListener('updater:progress', handler)
-    },
-    onReady: (callback) => {
-      const handler = () => callback()
-      ipcRenderer.on('updater:ready', handler)
-      return () => ipcRenderer.removeListener('updater:ready', handler)
+    onStatus: (callback) => {
+      const handler = (_event: Electron.IpcRendererEvent, status: UpdateStatus) =>
+        callback(status)
+      ipcRenderer.on('update:status', handler)
+      return () => ipcRenderer.removeListener('update:status', handler)
     },
   },
   reveal: {

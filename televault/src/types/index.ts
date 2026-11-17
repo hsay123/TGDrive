@@ -3,4 +3,6 @@ export type {
   VFSFile,
   VFSFolder,
   IpcResult,
+  UpdateStatus,
+  UpdatePhase,
 } from '../../electron/types'

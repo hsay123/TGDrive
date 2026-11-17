@@ -46,7 +46,7 @@ TeleVault connects to Telegram on your behalf using your personal API credential
 6. Click **"Create application"**
 7. You will see:
    - **App api_id** — a number like `1234567`
-   - **App api_hash** — a hex string like `a1b2c3d4e5f6...`
+   - **App api_hash** — a hex string like `EXAMPLE_API_HASH_NOT_A_REAL_VALUE`
 8. Copy both values — you'll need them in the next step
 
 > ⚠️ Keep your api_id and api_hash private. Do not commit them to git.
@@ -63,7 +63,7 @@ Open `.env` and fill in:
 
 ```env
 TELEGRAM_API_ID=1234567          # ← your api_id from step 2
-TELEGRAM_API_HASH=a1b2c3d4e5f6   # ← your api_hash from step 2
+TELEGRAM_API_HASH=EXAMPLE_API_HASH_NOT_A_REAL_VALUE   # ← your api_hash from step 2
 ```
 
 Leave everything else as default for local development.
@@ -94,28 +94,6 @@ This starts three processes concurrently:
 3. **Electron** — waits for Vite to be ready, then opens the app window
 
 You should see the TeleVault window open within ~5 seconds.
-
----
-
-## Step 6: Set up the license server (optional for dev)
-
-In a separate terminal:
-
-```bash
-cd server
-npm install
-cp .env.example .env
-# Edit server/.env: set ADMIN_SECRET to any string
-npm run dev
-```
-
-Seed test license keys:
-
-```bash
-ts-node scripts/seed-dev.ts
-```
-
-This prints two test keys (Pro + Team) you can enter in Settings → License.
 
 ---
 
@@ -213,10 +191,6 @@ televault/
 │   ├── pages/         # Route-level components
 │   ├── components/    # Shared UI components
 │   └── stores/        # Zustand state stores
-├── server/            # License validation server
-│   ├── db/            # Server SQLite (licenses.db)
-│   ├── routes/        # Express routes
-│   └── index.ts       # Server entry point
-├── scripts/           # CLI tools (generate-license, etc.)
+├── scripts/           # Build helpers (icon generation, dev checks)
 └── docs/              # Documentation
 ```

@@ -3,7 +3,7 @@ import { ipcResult } from './helpers'
 import { getSetting, setSetting } from '../../core/db/settings.db'
 import { shell } from 'electron'
 
-export function registerLicenseIpc(ipcMain: IpcMain): void {
+export function registerSetupIpc(ipcMain: IpcMain): void {
   ipcMain.handle('system:openExternal', async (_event, url: string) =>
     ipcResult(async () => {
       await shell.openExternal(url)

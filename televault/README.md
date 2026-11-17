@@ -12,21 +12,21 @@ No monthly storage bills. Your files, your Telegram, your control.
 ## Features
 
 - **Real nested folders** — not flat channel lists
-- **Chunked uploads** — upload files of any size (auto-splits at 1.9 GB)
-- **Client-side AES-256 encryption** — files encrypted before upload (Pro)
-- **Cross-device sync** — access your drive from any device (Pro)
-- **File version history** — restore previous versions (Pro)
+- **Chunked uploads** — large files auto-split at 512 MiB
+- **Client-side AES-256 encryption** — file contents encrypted before upload
+- **Cross-device sync** — access your drive from any device
+- **File version history** — coming soon
 - **Media preview** — images, video, audio, PDF in-app
 - **30-day trash** — restore accidentally deleted files
 - **Zero storage cost** — Telegram hosts everything for free
 
 ---
 
-## Download
+## Install
 
 [Download for Windows (.exe)]() · [Download for macOS (.dmg)]() · [Download for Linux (.AppImage)]()
 
-*(Links go live after first GitHub Release)*
+*(Download links will be added here after the first GitHub Release.)*
 
 ---
 
@@ -69,32 +69,14 @@ These are regular private Telegram channels. You can see them in Telegram but sh
 
 ---
 
-## Pricing
-
-TeleVault is free to use. Pro features require a license key.
-
-| Feature | Free | Pro |
-|---|:---:|:---:|
-| Upload & download | ✅ | ✅ |
-| Nested folder structure | ✅ | ✅ |
-| Media preview | ✅ | ✅ |
-| Files up to any size | ✅ | ✅ |
-| AES-256 encryption | — | ✅ |
-| Cross-device sync | — | ✅ |
-| File version history | — | ✅ |
-| Up to 3 devices | — | ✅ |
-
-**To get a Pro license:** Email [hello@televault.app](mailto:hello@televault.app).
-Pro is currently invite-only while we're in early access.
-
----
-
 ## Privacy & Security
 
-- TeleVault connects to Telegram using **your own API credentials** — not a shared bot
-- With encryption enabled, **files are encrypted on your device** before upload — Telegram cannot read them
-- The TeleVault license server only stores your **email and license key** — nothing else
-- TeleVault is **not affiliated with Telegram**
+- TeleVault connects to Telegram as **your own user account** using API credentials you supply — not a shared bot.
+- When encryption is enabled, **file contents** are encrypted on your device with AES-256-GCM before upload. The key is generated locally and stored in your OS keychain.
+- **File names, paths, MIME types and sizes are not encrypted** — they are stored in the local SQLite database and in Telegram message captions. TeleVault is not zero-knowledge and does not provide metadata privacy.
+- Your Telegram session is stored locally in the app-data database. It is not encrypted by TeleVault.
+- No analytics or crash reporting is included. The app contacts Telegram, and checks GitHub for updates.
+- TeleVault is **not affiliated with Telegram**. Use it in accordance with [Telegram's Terms of Service](https://telegram.org/tos).
 
 ---
 
@@ -106,32 +88,61 @@ Requirements: Node.js 20+, npm 10+
 npm install
 cp .env.example .env
 # Add TELEGRAM_API_ID and TELEGRAM_API_HASH
-npm run dev          # development mode
-npm run build        # production build
-npm run build:mac    # macOS .dmg
-npm run build:win    # Windows .exe
-npm run build:linux  # Linux .AppImage
 ```
 
----
+| Command | Output |
+|---|---|
+| `npm run dev` | Dev server + Electron with HMR |
+| `npm run build:dir` | Unpacked build in `release/` — fastest way to verify packaging |
+| `npm run build:linux` | `TeleVault-x.y.z.AppImage` + `televault_x.y.z_amd64.deb` |
+| `npm run build:win` | NSIS installer `.exe` |
+| `npm run build:mac` | `.dmg` + `.zip` (x64 and arm64) |
+| `npm run build` | Current platform, signed if certs are present |
 
-## License Server (Self-hosting)
-
-If you want to run your own license server:
+All `build:*` scripts run `clean → icons → tsc → vite build` before packaging, so
+`dist/` and `dist-electron/` are always rebuilt rather than reused from a stale
+checkout. App icons are generated from `src/assets/blacklogo.png`:
 
 ```bash
-cd server
-npm install
-cp .env.example .env
-# Edit .env: set ADMIN_SECRET
-npm run dev
+npm run icons   # regenerates build/icon.{png,ico,icns}
 ```
 
-Generate a license key:
+> Do not use `electron-builder --win` directly. It packages whatever is already
+> in `dist/` and `dist-electron/`, and both are gitignored — on a fresh checkout
+> that produces an app with no `main.js`.
+
+### Linux: libsecret is required
+
+TeleVault stores your encryption key and the hidden-folder PIN in the OS
+credential store. On Linux that means **libsecret** must be installed, or
+encrypted upload/download will fail:
 
 ```bash
-npm run generate-license -- --tier pro --email user@example.com --lifetime
+sudo apt install libsecret-1-0    # Debian / Ubuntu
 ```
+
+The `.deb` declares this dependency automatically. The AppImage cannot declare
+dependencies, so it must be installed separately on the target machine.
+
+### Signing
+
+Builds are unsigned by default, so Windows SmartScreen and macOS Gatekeeper will
+warn on first launch. To sign, set these before building:
+
+| Platform | Variables |
+|---|---|
+| macOS | `CSC_LINK`, `CSC_KEY_PASSWORD` |
+| Windows | `WIN_CSC_LINK`, `WIN_CSC_KEY_PASSWORD` |
+
+macOS also needs notarization credentials to clear Gatekeeper; see
+`build/entitlements.mac.plist` for the hardened-runtime requirements.
+
+### Releasing
+
+Push a `v*.*.*` tag to build and publish all three platforms via GitHub Actions
+(`.github/workflows/release.yml`). `electron-updater` then serves updates to
+installed copies. Note the updater points at `hsay123/TGDrive` — change
+`publish.owner` / `publish.repo` in `electron-builder.yml` if you fork this.
 
 ---
 

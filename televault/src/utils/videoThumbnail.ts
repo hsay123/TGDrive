@@ -5,17 +5,21 @@
  */
 export async function generateVideoThumbFromFile(
   fileId: string,
-  mimeType: string | null
+  _mimeType: string | null
 ): Promise<string | null> {
   try {
     console.log('[thumb] starting generation for:', fileId)
 
     // 1. Download video to preview-cache
-    const cachedPath = await window.televault.files.downloadToTemp(fileId)
-    console.log('[thumb] downloaded to:', cachedPath)
+    const result = await window.televault.files.downloadToTemp(fileId)
+    if (!result.success || !result.data) {
+      console.warn('[thumb] downloadToTemp failed:', result.error)
+      return null
+    }
+    console.log('[thumb] downloaded to:', result.data)
 
     // 2. Build tvfile:// URL for the cached video
-    const filename = cachedPath.split(/[/\\]/).pop()
+    const filename = result.data.split(/[/\\]/).pop()
     const videoUrl = `tvfile://preview-cache/${filename}`
     console.log('[thumb] video URL:', videoUrl)
 
