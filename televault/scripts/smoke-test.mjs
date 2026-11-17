@@ -121,6 +121,29 @@ try {
   console.log('[smoke] PASS')
 } catch (err) {
   console.error('[smoke] FAIL:', err.message)
+  if (app) {
+    try {
+      const dom = await app.evaluate(async (electron) => {
+        const win = electron.BrowserWindow.getAllWindows()[0]
+        if (!win) return { error: 'no app window' }
+        const text = await win.webContents.executeJavaScript('document.body.innerText', true)
+        return {
+          url: win.webContents.getURL(),
+          title: win.webContents.getTitle(),
+          text: String(text).slice(0, 800),
+          playwrightWindows: undefined,
+        }
+      })
+      console.error('[smoke] app window DOM:', JSON.stringify(dom))
+    } catch (e) {
+      console.error('[smoke] app window DOM: <unavailable>', e.message)
+    }
+    try {
+      console.error('[smoke] playwright windows:', app.windows().map((w) => w.url()))
+    } catch {
+      /* ignore */
+    }
+  }
   if (window) {
     try {
       console.error('[smoke] window URL:', window.url())
