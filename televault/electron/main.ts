@@ -80,7 +80,12 @@ function createWindow(): void {
     mainWindow.loadURL(devUrl)
     mainWindow.webContents.openDevTools({ mode: 'detach' })
   } else {
-    mainWindow.loadFile(path.join(__dirname, '../../dist/index.html'))
+    // Resolve from app.getAppPath() (the asar/app root) rather than __dirname
+    // relative traversal, which resolved incorrectly in the packaged Windows
+    // build and left the renderer window blank at file:///<drive>:/.
+    const indexPath = path.join(app.getAppPath(), 'dist', 'index.html')
+    console.log('[main] loading renderer:', indexPath)
+    mainWindow.loadFile(indexPath)
   }
 
   initUpdater(mainWindow)
