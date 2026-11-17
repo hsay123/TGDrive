@@ -80,18 +80,15 @@ try {
 
   await window.waitForLoadState('domcontentloaded')
 
-  // On Windows, Playwright can attach to the app window before Electron's
-  // initial loadFile() navigation commits, leaving a blank file:///<drive>:/
-  // page. Re-issuing the load from the main process after attach is reliable
-  // (verified on windows-2022). Wait briefly first so normal startup is untouched.
-  let setupVisible = false
-  try {
-    await window.getByText('Welcome to TeleVault').waitFor({ timeout: 8000 })
-    setupVisible = true
-  } catch {
-    console.log('[smoke] setup screen not visible after startup — reloading renderer')
-  }
-  if (!setupVisible) {
+  // Read the renderer DOM through Electron's own webContents rather than
+  // Playwright's locator: on windows-2022 the initial loadFile() navigation can
+  // be dropped while Playwright attaches, leaving a blank file:///<drive>:/
+  // page. Re-issuing the load after attach works; retry for a bounded period
+  // and assert against the real renderer text on every platform.
+  const deadline = Date.now() + 60000
+  let lastReload = 0
+  let bodyText = ''
+  const reloadRenderer = async () => {
     await app.evaluate(async (electron) => {
       const win = electron.BrowserWindow.getAllWindows()[0]
       if (!win) throw new Error('no app window to reload')
@@ -102,12 +99,24 @@ try {
       await win.loadFile(indexPath)
     })
   }
-
-  await window.getByText('Welcome to TeleVault').waitFor({ timeout: 30000 })
-  const apiLabel = window.getByText('API ID', { exact: true }).first()
-  await apiLabel.waitFor({ timeout: 10000 })
-  if (!(await apiLabel.isVisible())) {
-    throw new Error('API ID label is not visible on the setup screen')
+  while (Date.now() < deadline) {
+    bodyText = await app
+      .evaluate(async (electron) => {
+        const win = electron.BrowserWindow.getAllWindows()[0]
+        if (!win) return ''
+        return String(await win.webContents.executeJavaScript('document.body.innerText', true))
+      })
+      .catch(() => '')
+    if (bodyText.includes('Welcome to TeleVault') && bodyText.includes('API ID')) break
+    if (Date.now() - lastReload >= 8000) {
+      console.log('[smoke] setup screen not rendered — reloading packaged renderer')
+      await reloadRenderer().catch(() => {})
+      lastReload = Date.now()
+    }
+    await new Promise((resolve) => setTimeout(resolve, 2000))
+  }
+  if (!bodyText.includes('Welcome to TeleVault') || !bodyText.includes('API ID')) {
+    throw new Error('first-run /setup screen did not render in the packaged app')
   }
 
   console.log('[smoke] first-run /setup screen rendered ("Welcome to TeleVault", "API ID")')
