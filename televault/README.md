@@ -106,12 +106,61 @@ Requirements: Node.js 20+, npm 10+
 npm install
 cp .env.example .env
 # Add TELEGRAM_API_ID and TELEGRAM_API_HASH
-npm run dev          # development mode
-npm run build        # production build
-npm run build:mac    # macOS .dmg
-npm run build:win    # Windows .exe
-npm run build:linux  # Linux .AppImage
 ```
+
+| Command | Output |
+|---|---|
+| `npm run dev` | Dev server + Electron with HMR |
+| `npm run build:dir` | Unpacked build in `release/` — fastest way to verify packaging |
+| `npm run build:linux` | `TeleVault-x.y.z.AppImage` + `televault_x.y.z_amd64.deb` |
+| `npm run build:win` | NSIS installer `.exe` |
+| `npm run build:mac` | `.dmg` + `.zip` (x64 and arm64) |
+| `npm run build` | Current platform, signed if certs are present |
+
+All `build:*` scripts run `clean → icons → tsc → vite build` before packaging, so
+`dist/` and `dist-electron/` are always rebuilt rather than reused from a stale
+checkout. App icons are generated from `src/assets/blacklogo.png`:
+
+```bash
+npm run icons   # regenerates build/icon.{png,ico,icns}
+```
+
+> Do not use `electron-builder --win` directly. It packages whatever is already
+> in `dist/` and `dist-electron/`, and both are gitignored — on a fresh checkout
+> that produces an app with no `main.js`.
+
+### Linux: libsecret is required
+
+TeleVault stores your encryption key and the hidden-folder PIN in the OS
+credential store. On Linux that means **libsecret** must be installed, or
+encrypted upload/download will fail:
+
+```bash
+sudo apt install libsecret-1-0    # Debian / Ubuntu
+```
+
+The `.deb` declares this dependency automatically. The AppImage cannot declare
+dependencies, so it must be installed separately on the target machine.
+
+### Signing
+
+Builds are unsigned by default, so Windows SmartScreen and macOS Gatekeeper will
+warn on first launch. To sign, set these before building:
+
+| Platform | Variables |
+|---|---|
+| macOS | `CSC_LINK`, `CSC_KEY_PASSWORD` |
+| Windows | `WIN_CSC_LINK`, `WIN_CSC_KEY_PASSWORD` |
+
+macOS also needs notarization credentials to clear Gatekeeper; see
+`build/entitlements.mac.plist` for the hardened-runtime requirements.
+
+### Releasing
+
+Push a `v*.*.*` tag to build and publish all three platforms via GitHub Actions
+(`.github/workflows/release.yml`). `electron-updater` then serves updates to
+installed copies. Note the updater points at `hsay123/TGDrive` — change
+`publish.owner` / `publish.repo` in `electron-builder.yml` if you fork this.
 
 ---
 

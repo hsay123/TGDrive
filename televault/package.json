@@ -2,14 +2,28 @@
   "name": "televault",
   "version": "0.1.0",
   "description": "Your Telegram account as a real cloud drive",
+  "author": {
+    "name": "TeleVault",
+    "email": "support@televault.app"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/hsay123/TGDrive.git"
+  },
+  "homepage": "https://github.com/hsay123/TGDrive",
   "main": "dist-electron/electron/main.js",
   "scripts": {
     "dev": "concurrently -k \"vite\" \"tsc -p tsconfig.electron.json -w --preserveWatchOutput\" \"wait-on http://localhost:5173 dist-electron/electron/main.js && env -u ELECTRON_RUN_AS_NODE electron .\"",
     "build:electron": "tsc -p tsconfig.electron.json",
-    "build": "npm run build:electron && vite build && electron-builder",
-    "build:win": "electron-builder --win",
-    "build:mac": "electron-builder --mac",
-    "build:linux": "electron-builder --linux",
+    "clean": "node -e \"const fs=require('fs');for(const d of ['dist','dist-electron'])fs.rmSync(d,{recursive:true,force:true})\"",
+    "build:prepare": "npm run clean && npm run icons && npm run build:electron && vite build",
+    "build": "npm run build:prepare && electron-builder",
+    "build:win": "npm run build:prepare && electron-builder --win",
+    "build:mac": "npm run build:prepare && electron-builder --mac --x64 --arm64",
+    "build:linux": "npm run build:prepare && electron-builder --linux",
+    "build:dir": "npm run build:prepare && electron-builder --dir",
+    "icons": "node scripts/generate-icons.mjs",
     "preview": "vite preview",
     "rebuild": "electron-rebuild -f -w better-sqlite3,keytar",
     "postinstall": "electron-rebuild -f -w better-sqlite3,keytar"

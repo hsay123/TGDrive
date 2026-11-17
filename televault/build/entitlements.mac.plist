@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+  <dict>
+    <!-- Electron needs these two under the hardened runtime. -->
+    <key>com.apple.security.cs.allow-jit</key>
+    <true/>
+    <key>com.apple.security.cs.allow-unsigned-executable-memory</key>
+    <true/>
+    <!-- Outbound network: Telegram MTProto + update checks. -->
+    <key>com.apple.security.network.client</key>
+    <true/>
+    <!-- Read files the user picks via the native open dialog. -->
+    <key>com.apple.security.files.user-selected.read-write</key>
+    <true/>
+    <!-- keytar talks to the login keychain. -->
+    <key>keychain-access-groups</key>
+    <array>
+      <string>$(AppIdentifierPrefix)com.televault.app</string>
+    </array>
+  </dict>
+</plist>

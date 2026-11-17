@@ -1,27 +1,75 @@
 appId: com.televault.app
 productName: TeleVault
+copyright: Copyright © 2026 TeleVault
+
 directories:
   output: release
+  buildResources: build
+
 files:
   - dist/**/*
   - dist-electron/**/*
   - package.json
+
+# sharp ships its native libvips as a plain .so (not a .node), which electron-builder's
+# smartUnpack does NOT detect. Without this, libvips stays inside the asar and sharp
+# throws on first thumbnail — works in dev, crashes when packaged.
+asarUnpack:
+  - "**/node_modules/@img/**"
+  - "**/node_modules/sharp/**"
+
 extraMetadata:
   main: dist-electron/electron/main.js
+
 mac:
   target:
     - dmg
     - zip
-  arch:
-    - x64
-    - arm64
+  category: public.app-category.utilities
+  icon: build/icon.icns
+  darkModeSupport: true
+  # Required for notarization. Harmless when unsigned.
+  hardenedRuntime: true
+  gatekeeperAssess: false
+  entitlements: build/entitlements.mac.plist
+  entitlementsInherit: build/entitlements.mac.plist
+
 win:
   target:
     - nsis
+  icon: build/icon.ico
+
+# electron-builder 24 keeps nsis/deb at the top level, not nested under win/linux.
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: always
+  createStartMenuShortcut: true
+  shortcutName: TeleVault
+
+deb:
+  # keytar links against libsecret at runtime; without it the app crashes on launch.
+  depends:
+    - libsecret-1-0
+    - libnotify4
+    - libnss3
+
 linux:
   target:
     - AppImage
     - deb
+  icon: build/icon.png
+  category: Utility
+  synopsis: Your Telegram account as a real cloud drive
+  desktop:
+    entry:
+      Name: TeleVault
+      Comment: Your Telegram account as a real cloud drive
+      Categories: Utility;FileTools;Network;
+
 publish:
   provider: github
+  owner: hsay123
+  repo: TGDrive
   releaseType: release
