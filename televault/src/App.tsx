@@ -1,5 +1,5 @@
 import { Suspense, lazy } from 'react'
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+import { HashRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { Cloud, Loader2 } from 'lucide-react'
 import { ToastProvider } from './components/shared/Toast'
 import { AppInit } from './components/AppInit'
@@ -57,8 +57,12 @@ export default function App() {
     return <BrowserSplash />
   }
 
+  // HashRouter keeps routes in the URL fragment. Under a packaged file:// URL
+  // BrowserRouter resolves absolute paths against the filesystem root (the
+  // drive root on Windows), so /setup becomes file:///D:/ and the app goes
+  // blank. HashRouter behaves the same in dev and in the packaged app.
   return (
-    <BrowserRouter>
+    <HashRouter>
       <ToastProvider />
       <Suspense fallback={<RouteFallback />}>
         <Routes>
@@ -75,6 +79,6 @@ export default function App() {
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </Suspense>
-    </BrowserRouter>
+    </HashRouter>
   )
 }
