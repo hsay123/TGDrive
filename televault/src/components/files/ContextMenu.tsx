@@ -205,8 +205,9 @@ export function ContextMenu({ x, y, entries, onClose }: ContextMenuProps) {
       action: () => {
         const subject = targetIds.length === 1 ? 'this file' : `these ${targetIds.length} items`
         if (!confirm(
-          `Remove ${subject} from TeleVault? This removes the file from TeleVault. ` +
-          'Its data stays in your Telegram until you delete the messages there.'
+          `Remove ${subject} from TeleVault? This deletes the recorded Telegram messages ` +
+          'and local database records. Cached thumbnails, old sync snapshots and ' +
+          'archived version messages are not removed.'
         )) return
         run(async () => {
           for (const id of targetIds) {

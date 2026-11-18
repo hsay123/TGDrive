@@ -56,7 +56,7 @@ Every claim below is marked **CONFIRMED** (with the file and line proving it) or
 | Version history UI | **NOT FOUND** | Backend exists (`electron/ipc/files.ipc.ts:376-385`); UI is "Coming soon" (`src/components/files/ContextMenu.tsx:172`) |
 | Tags | **NOT FOUND** | `src/components/layout/Sidebar.tsx:226` ("Tags coming soon") |
 | Public share links usable by non-users | **NOT FOUND** | `files:shareLink` returns a private-channel URL `https://t.me/c/<id>/<msg>` (`electron/ipc/files.ipc.ts:364-372`) |
-| "Delete permanently" removes all Telegram data | **NOT FOUND — wording corrected** | The trash-view action is now "Remove from TeleVault" with the text "This removes the file from TeleVault. Its data stays in your Telegram until you delete the messages there." (`src/components/files/ContextMenu.tsx`). The backend does attempt `messages.delete` for known chunk messages (`electron/ipc/files.ipc.ts:70-125`), but caption metadata, index snapshots and version rows are not a guaranteed complete purge; see the true-delete assessment in the item-3 PR. |
+| "Delete permanently" removes all Telegram data | **NOT FOUND — wording corrected** | The trash-view action is "Remove from TeleVault" and now warns that it deletes recorded Telegram messages and local database records, but not cached thumbnails, old sync snapshots or archived version messages (`src/components/files/ContextMenu.tsx`). The backend calls `messages.delete` for every recorded chunk (`electron/ipc/files.ipc.ts`) before dropping local rows, so this is not a complete purge of all Telegram data. |
 
 ## 5. Outbound network destinations (complete list)
 
@@ -135,10 +135,10 @@ These rows describe the behaviour after the release-hardening items land. Re-che
 | Encrypted files are never silently made unreadable or re-encrypted with a replacement key | **CONFIRMED** | `core/crypto/key-guard.ts` refuses to create a key when encrypted file/trash rows exist but the keychain entry is missing, and `core/crypto/keystore.ts` reads the fingerprint without creating a key. The uploader uses `getKeyForEncryption()`. |
 | If no secure key store is available, encryption is disabled rather than using a temporary key | **CONFIRMED** | `core/crypto/key-guard.ts` reports `NO_SECURE_STORE`; `src/pages/Settings.tsx` disables the toggle and shows the explanation. No ephemeral per-launch key exists. |
 | A one-time warning explains that losing the key makes encrypted files permanently unreadable | **CONFIRMED** | `src/pages/Settings.tsx` shows the warning on first enable. **Export/import is not implemented** — tracked in `docs/FOLLOW_UPS.md` item 19. Do not claim recoverability. |
-| "Remove from TeleVault" removes the file locally but leaves its data in Telegram | **CONFIRMED** | `src/components/files/ContextMenu.tsx` uses the exact text "This removes the file from TeleVault. Its data stays in your Telegram until you delete the messages there." True Telegram message deletion is assessed but not implemented in this beta. |
+| "Remove from TeleVault" deletes the file's recorded Telegram messages and local records | **CONFIRMED** | `src/components/files/ContextMenu.tsx` warns that recorded Telegram messages and local database records are deleted, while cached thumbnails, old sync snapshots and archived version messages are not. `electron/ipc/files.ipc.ts` calls `deleteMessages(..., { revoke: true })` for every recorded chunk (grouped by channel) before `removeTrashEntryRecords()` drops the local chunks/versions/trash rows. |
 | Trash is 30 days, and expiry removes only local references | **CONFIRMED** | `files.db.ts` sets `expires_at = deleted_at + 30 days`; `electron/ipc/trash-expiry.ts` sweeps at startup and daily via `removeTrashEntryRecords()` (local rows only, no Telegram delete). Telegram data remains until the user deletes the messages. |
 
-**Safe wording:** "Removing a file from TeleVault removes it from the app; your data stays in your Telegram account until you delete the messages there."
+**Safe wording:** "Removing a file from TeleVault deletes its recorded Telegram messages and local records; cached thumbnails, old sync snapshots and archived version messages may remain."
 
 **Unsafe wording:** "deleting a file erases it from Telegram", "encrypted files can be recovered", "we escrow your key".
 
