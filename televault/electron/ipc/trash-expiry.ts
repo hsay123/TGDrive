@@ -47,9 +47,9 @@ export async function runTrashExpirySweepOnce(
   let failed = 0
   for (const entry of expired) {
     try {
-      // Local references only — never a Telegram message delete. Per the
-      // "Remove from TeleVault" wording, the file data stays in Telegram until
-      // the user deletes the messages there.
+      // Local references only — never a Telegram message delete. Purged trash
+      // leaves the file's messages in Telegram; unlike "Delete permanently",
+      // this path does not delete them from the user's account.
       deps.purgeLocal(entry)
       purged++
     } catch (error) {

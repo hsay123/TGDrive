@@ -269,11 +269,10 @@ export function getTrashEntryChunks(entry: TrashEntry): Chunk[] {
  * Remove the local DB records for a trash entry — the chunk/version references
  * and the trash row itself, atomically.
  *
- * The manual "Remove from TeleVault" IPC path calls this only after its Telegram
+ * The manual "Delete permanently" IPC path calls this only after its Telegram
  * message deletions succeed. The 30-day expiry sweep calls it deliberately
- * WITHOUT touching Telegram: consistent with the UI wording, expired rows lose
- * their local references while the file data stays in Telegram until the user
- * deletes the messages there.
+ * WITHOUT touching Telegram: expired rows lose their local references while the
+ * file data stays in Telegram until the user deletes the messages there.
  */
 export function removeTrashEntryRecords(entry: TrashEntry): void {
   const db = getDb()
