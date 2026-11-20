@@ -35,7 +35,8 @@ No monthly storage bills. Your files, your Telegram, your control.
 - **Encryption key loss is permanent.** If you lose the key stored in your OS keychain, encrypted files cannot be read. This beta cannot export or import a recovery key, and encryption is disabled when no secure key store is available (e.g. Linux without a keyring). Only enable encryption if you can keep the key safe.
 - **"Delete permanently" does not remove every trace.** It deletes the file's recorded Telegram messages and local database records, but cached thumbnails, old sync snapshots and archived version messages remain.
 - **Sync is last-writer-wins.** A device with an older index can overwrite newer local metadata on pull. A local DB backup is taken before each full replace, but per-item conflict resolution is not implemented yet.
-- **Trash expiry is local-only.** After 30 days the local references are purged at startup and daily; the underlying Telegram data is left in your account.
+- **Trash expiry leaves orphaned Telegram data.** After 30 days the local references are purged at startup and daily, but the underlying messages are left in your Telegram account. Once the local pointers are gone, TeleVault can no longer find or delete those messages; they keep using your Telegram storage until you remove them manually.
+- **Permanent delete leaves traces.** Cached thumbnails on disk, old sync snapshots in the Index channel and archived version messages are not removed when a file is permanently deleted.
 - **OS warnings are expected.** Builds are not notarized, so Windows SmartScreen and macOS Gatekeeper will warn on first launch.
 - **Version history and tags are not available yet**, and share links only work for users who can access your private Telegram channels.
 
