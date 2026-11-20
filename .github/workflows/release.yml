@@ -189,9 +189,33 @@ jobs:
           path: televault/release/
           retention-days: 14
 
+  # A tag must describe the exact version that electron-builder will package.
+  # electron-builder reads `televault/package.json`; it never parses the tag, so
+  # without this check a mistyped tag could publish a draft with the wrong
+  # version in its filenames and metadata. Dry runs have no tag and skip it.
+  check-tag-version:
+    name: Check tag matches package.json version
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+      - name: Tag version must equal package.json version
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          set -euo pipefail
+          tag_version="${GITHUB_REF_NAME#v}"
+          pkg_version="$(node -p "require('./televault/package.json').version")"
+          echo "tag=${tag_version} package.json=${pkg_version}"
+          if [[ "${tag_version}" != "${pkg_version}" ]]; then
+            echo "::error::Tag version '${tag_version}' does not match package.json version '${pkg_version}'." >&2
+            exit 1
+          fi
+
   assemble:
     name: Assemble + checksum + draft release
-    needs: [build-linux, build-windows, build-mac-x64, build-mac-arm64]
+    needs: [check-tag-version, build-linux, build-windows, build-mac-x64, build-mac-arm64]
     if: >-
       !contains(needs.*.result, 'failure') &&
       !contains(needs.*.result, 'cancelled')
