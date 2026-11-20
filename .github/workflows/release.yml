@@ -235,6 +235,11 @@ jobs:
           find artifacts -type f \( -name 'TeleVault-*' -o -name 'latest*.yml' \) -exec cp -f {} stage/ \;
           echo "=== staged files ==="
           ls -lh stage/
+      # The x64 and arm64 jobs each emit their own latest-mac.yml; the plain
+      # copy above makes whichever is staged last win, leaving Intel Macs with
+      # no compatible update entry. Merge both files arrays deterministically.
+      - name: Merge macOS update metadata
+        run: node televault/scripts/merge-mac-update-metadata.mjs artifacts stage/latest-mac.yml
       - name: Generate SHA256SUMS.txt
         run: node televault/scripts/generate-checksums.mjs stage
       - name: Verify checksums
