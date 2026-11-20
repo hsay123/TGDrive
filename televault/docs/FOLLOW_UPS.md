@@ -98,6 +98,21 @@ no UI redesign. Each item below needs its own issue, test plan and commit.
     importing it into a fresh install still needs a separate design: secret format, key
     derivation, file picker/validation, partial-restore behaviour, and tests. Do not claim
     recoverability in website copy until it exists.
+20. **Telegram deletion on 30-day trash purge.** Purged trash leaves the file's messages in
+    the user's Telegram. `electron/ipc/trash-expiry.ts` calls only
+    `removeTrashEntryRecords()`, which drops local `chunks`/`versions`/`trash` rows and
+    never calls Telegram. Making the purge delete messages would require reading each
+    expired entry's `_chunks` snapshot before its local rows disappear, resolving each
+    `channel_id` to the right channel entity, calling `deleteMessages(..., { revoke: true })`
+    grouped by channel with retry/rate-limit handling, and only then removing local rows —
+    with per-entry failure retained for retry. Risks: this is destructive and irreversible
+    background work with no user confirmation; the trash row is the last pointer to the
+    message IDs, so deleting it before Telegram confirms leaves orphaned data permanently;
+    startup/daily sweeps can hit FloodWaitErrors, offline sessions or missing channel
+    access; multi-channel partial failure must not be reported as success; legacy entries
+    without `_chunks`, version-chunk messages and old index snapshots are not covered by
+    that snapshot and would still remain. Keep the current local-only behavior until this
+    is explicitly designed and tested.
 
 ## Deferred launch blockers (IDs only)
 
