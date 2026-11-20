@@ -200,12 +200,12 @@ export function ContextMenu({ x, y, entries, onClose }: ContextMenuProps) {
       dividerBefore: true,
     })
     items.push({
-      label: bulkLabel('Remove from TeleVault'),
+      label: bulkLabel('Delete permanently'),
       icon: <Trash2 className="h-3.5 w-3.5" />,
       action: () => {
         const subject = targetIds.length === 1 ? 'this file' : `these ${targetIds.length} items`
         if (!confirm(
-          `Remove ${subject} from TeleVault? This deletes the recorded Telegram messages ` +
+          `Delete ${subject} permanently? This deletes the recorded Telegram messages ` +
           'and local database records. Cached thumbnails, old sync snapshots and ' +
           'archived version messages are not removed.'
         )) return

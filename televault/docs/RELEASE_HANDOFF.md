@@ -141,7 +141,7 @@ No new features, no UI redesign, no license/payment gating, no history rewrite. 
 | Area | Issue | Detail |
 |---|---|---|
 | Encryption | Key loss is permanent | Losing the OS-keychain key makes encrypted files permanently unreadable. This beta has no recovery-key export/import; a guard blocks silent key replacement when encrypted rows exist, and the toggle is disabled when no secure key store is available. See `docs/FOLLOW_UPS.md` item 19. |
-| Delete | "Remove from TeleVault" is local-only | It removes the file from TeleVault but does **not** delete its messages in Telegram. The data stays in your Telegram until you delete the messages there. |
+| Delete | "Delete permanently" leaves traces | It deletes the file's recorded Telegram messages and local database records, but cached thumbnails, old sync snapshots and archived version messages remain. |
 | Sync | Last-writer-wins full replace | Conflicts are not resolved per item: the most recently pushed device wins entirely and can overwrite newer local metadata. A local DB backup is taken before each full replace, but conflict resolution is still needed. See `docs/FOLLOW_UPS.md` B3. |
 | Trash | 30-day purge is local-only | Expired trash rows lose their local references at startup and daily; the underlying Telegram data is intentionally left in place. |
 | Signing | Not notarized | macOS builds are ad-hoc signed but not Developer-ID signed or notarized; Windows SmartScreen and macOS Gatekeeper warnings are expected on first launch. |
