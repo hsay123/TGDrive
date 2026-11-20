@@ -30,6 +30,7 @@ import {
 } from '../../core/telegram/channels'
 import { getClient } from '../../core/telegram/client'
 import { withRetry, withEntityRetry } from '../../core/telegram/ratelimit'
+import { permanentDeleteFailureMessage } from './permanent-delete-error'
 
 export interface VersionRow {
   id: string
@@ -307,9 +308,7 @@ export function registerFilesIpc(
               '[permanentDelete] Telegram deletion failed — DB records retained for retry:',
               err
             )
-            throw new Error(
-              `Remove from TeleVault failed: ${reason}. Nothing was removed — the item is still in Trash and will be retried. Please try again.`
-            )
+            throw new Error(permanentDeleteFailureMessage(reason))
           }
         } else {
           await vfs.deleteFile(fileId, false)
