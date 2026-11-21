@@ -4,6 +4,14 @@ All notable changes to TeleVault will be documented here.
 
 ## [Unreleased]
 
+### Security
+- Telegram session, API ID and API Hash are now stored with Electron `safeStorage` instead of plaintext SQLite settings. No plaintext fallback: when no OS credential store is available the session is memory-only for the current launch, with an explicit warning.
+- Index snapshots now contain only an explicit allowlist of sync preferences. Credentials, private-channel IDs/access hashes and cached user data are no longer uploaded, and a hostile snapshot can no longer overwrite them on import.
+- One-time migration for rc.1 installs: revokes the old Telegram session server-side, moves API credentials to protected storage, securely deletes plaintext rows (`secure_delete`, WAL checkpoint, `VACUUM`), scrubs local database backups and warns if manual revocation is needed.
+- Removed log statements that printed the numeric API ID; added a source-grep test that fails if credential logging returns.
+- Generic settings IPC refuses credential keys.
+- See `docs/SECURITY.md` for storage details and the rc.1 exposure notice.
+
 ### Planned
 - Payment gateway integration (Razorpay)
 - Mobile app (iOS + Android)

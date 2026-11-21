@@ -37,6 +37,7 @@ No monthly storage bills. Your files, your Telegram, your control.
 - **Sync is last-writer-wins.** A device with an older index can overwrite newer local metadata on pull. A local DB backup is taken before each full replace, but per-item conflict resolution is not implemented yet.
 - **Trash expiry leaves orphaned Telegram data.** After 30 days the local references are purged at startup and daily, but the underlying messages are left in your Telegram account. Once the local pointers are gone, TeleVault can no longer find or delete those messages; they keep using your Telegram storage until you remove them manually.
 - **Permanent delete leaves traces.** Cached thumbnails on disk, old sync snapshots in the Index channel and archived version messages are not removed when a file is permanently deleted.
+- **Snapshots exported by v0.1.0-rc.1 cannot be recalled.** Early snapshots were compressed JSON that included your session string, API hash and other account metadata. The app cannot find or delete those old messages; if you used rc.1, read `docs/SECURITY.md` before trusting those channels.
 - **OS warnings are expected.** Builds are not notarized, so Windows SmartScreen and macOS Gatekeeper will warn on first launch.
 - **Version history and tags are not available yet**, and share links only work for users who can access your private Telegram channels.
 
@@ -91,7 +92,8 @@ These are regular private Telegram channels. You can see them in Telegram but sh
 - TeleVault connects to Telegram as **your own user account** using API credentials you supply — not a shared bot.
 - When encryption is enabled, **file contents** are encrypted on your device with AES-256-GCM before upload. The key is generated locally and stored in your OS keychain.
 - **File names, paths, MIME types and sizes are not encrypted** — they are stored in the local SQLite database and in Telegram message captions. TeleVault is not zero-knowledge and does not provide metadata privacy.
-- Your Telegram session is stored locally in the app-data database. It is not encrypted by TeleVault.
+- Your Telegram session, API ID and API Hash are stored in OS-protected storage (Electron `safeStorage`), not as plaintext in the app database. Index snapshots only carry the two sync preferences — credentials and private-channel identifiers are never uploaded.
+- If no OS credential store is available (Linux with the `basic_text` backend, or a missing/unreachable keyring), TeleVault keeps the session in memory only and tells you so. You will need to sign in again next launch; there is deliberately no plaintext fallback. See `docs/SECURITY.md`.
 - No analytics or crash reporting is included. The app contacts Telegram, and checks GitHub for updates.
 - TeleVault is **not affiliated with Telegram**. Use it in accordance with [Telegram's Terms of Service](https://telegram.org/tos).
 
@@ -130,16 +132,20 @@ npm run icons   # regenerates build/icon.{png,ico,icns}
 
 ### Linux: libsecret is required
 
-TeleVault stores your encryption key and the hidden-folder PIN in the OS
-credential store. On Linux that means **libsecret** must be installed, or
-encrypted upload/download will fail:
+TeleVault stores your encryption key and hidden-folder PIN through keytar, and
+your Telegram session/API credentials through Electron `safeStorage`. On Linux
+both need a working keyring — **libsecret** plus a running **GNOME Keyring** or
+**KDE Wallet** — or encrypted upload/download will fail and sign-in will only
+last for the current launch:
 
 ```bash
 sudo apt install libsecret-1-0    # Debian / Ubuntu
 ```
 
-The `.deb` declares this dependency automatically. The AppImage cannot declare
-dependencies, so it must be installed separately on the target machine.
+The `.deb` declares libsecret automatically. The AppImage cannot declare
+dependencies, so it must be installed separately on the target machine. A
+missing keyring is never silently replaced with plaintext storage; see
+`docs/SECURITY.md` for the exact behaviour and recovery steps.
 
 ### Signing
 

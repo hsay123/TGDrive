@@ -6,11 +6,12 @@ no UI redesign. Each item below needs its own issue, test plan and commit.
 
 ## Security hardening
 
-1. **Encrypt the stored Telegram session with Electron `safeStorage`.** Today the session
-   string is a plaintext value in the local SQLite DB (`core/telegram/client.ts:182-187`).
-   Migrating it must preserve existing sessions (decrypt-on-read with fallback) or users get
-   logged out. Note `safeStorage` also needs libsecret/kwallet on Linux, so the no-keyring
-   path needs a decision first.
+1. **RESOLVED — encrypt the stored Telegram session with Electron `safeStorage`.** Implemented
+   in the rc.2 security branch: credentials live in an OS-encrypted JSON file, and the rc.1
+   plaintext rows are revoked, scrubbed and removed by a one-time migration. The agreed
+   no-keyring behaviour is **memory-only plus an explicit warning**, not decrypt-on-read with
+   a plaintext fallback. Details in `docs/SECURITY.md`. Remaining work: real-device QA for
+   Windows DPAPI, macOS Keychain and Linux with/without a running keyring (see item 20).
 2. **Encrypt metadata / Telegram captions.** File names, paths, MIME types and sizes are
    plaintext in captions (`core/telegram/uploader.ts:44-54,72-73,271,294`) and local SQLite
    (`core/db/schema.ts:13-29`). Encrypting them breaks compatibility with already-uploaded
@@ -30,6 +31,16 @@ no UI redesign. Each item below needs its own issue, test plan and commit.
    shipped app (the orphaned `server/` tree was removed). If one is ever reintroduced: bind
    `127.0.0.1` only, use a random port + per-launch token, strict Origin checks, and never
    log secrets.
+
+ 20. **Real-device credential-store QA is still outstanding.** CI verifies build, typecheck,
+    unit tests and a headless smoke test on four runners, but it does not exercise a real
+    Windows DPAPI / macOS Keychain / Linux keyring round trip, nor a real Telegram
+    `auth.LogOut` while online. Test manually before promoting rc.2 to a stable release.
+ 21. **Old rc.1 Index snapshots remain exposed.** Messages already uploaded cannot be
+    rewritten by a local app change. The app keeps only the newest snapshot message ID, so
+    it cannot enumerate historical snapshots for deletion. Documented in `docs/SECURITY.md`
+    and `docs/FACTS_FOR_WEBSITE.md`; users must remove those messages in Telegram and rotate
+    their API credentials if needed.
 
 ## Correctness / features (explicitly out of scope here)
 

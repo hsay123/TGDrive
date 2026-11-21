@@ -153,6 +153,8 @@ No new features, no UI redesign, no license/payment gating, no history rewrite. 
 | Delete | Permanent delete leaves traces | Cached thumbnails on disk, old sync snapshots in the Index channel and archived version messages are not removed when a file is permanently deleted. |
 | Signing | Not notarized | macOS builds are ad-hoc signed but not Developer-ID signed or notarized; Windows SmartScreen and macOS Gatekeeper warnings are expected on first launch. |
 | Features | Incomplete | File version history and tags are not available yet; share links point to private Telegram channels and are not usable by non-users. |
+| Security | **rc.1 shipped plaintext credentials** | `v0.1.0-rc.1` stored the Telegram session, API ID and API Hash as plaintext SQLite settings, copied them into pre-pull DB backups, and uploaded them in Index snapshots. rc.2 protects them and performs a one-time migration. **rc.1 users must update and will be signed out once.** Details in `docs/SECURITY.md`. |
+| Security | Old Index snapshots cannot be recalled | Snapshots already uploaded to Telegram still contain the rc.1 API Hash and account metadata in compressed JSON; the app cannot rewrite past messages. Users must delete those messages in Telegram and rotate API credentials if needed. |
 
 ## 10. v0.1.0-rc.1 published record
 
@@ -193,3 +195,32 @@ No new features, no UI redesign, no license/payment gating, no history rewrite. 
 - Stable-channel clients do not auto-update to this pre-release (`releaseType: release`, §5).
 - Gate B: the user issued the `PUBLISH` gate directly; per-OS manual QA results are not recorded in this handoff. Platform warnings in §4 still apply.
 - Emergency rollback, only on explicit request: `gh release edit v0.1.0-rc.1 --draft=true`. Do not move, delete or re-push the tag; fix forward with `v0.1.0-rc.2`.
+
+## 11. rc.2 security-fix handoff (pre-release preparation)
+
+`v0.1.0-rc.1` stays published and its tag is untouched. The fix is forward-only, prepared as five independent PRs off `origin/main`. **Nothing here has been merged, tagged or published.**
+
+| PR | Branch | Scope | Local checks |
+|---|---|---|---|
+| #28 | `security/session-protection` | Snapshot settings allowlist + hostile-snapshot tests | 37/37 unit tests, both typechecks; CI run `44937446278` PASS on all four runners |
+| #31 | `security/protected-credentials` | `safeStorage` protected store, memory-only no-keyring path, log fix, generic-settings IPC restriction | 39/39 unit tests, both typechecks; CI run `44938133064` PASS on all four runners |
+| #32 | `security/legacy-session-migration` | One-time rc.1 migration + backup scrubbing | 40/40 unit tests, both typechecks; CI run `44938553409` PASS on all four runners |
+| docs | `security/rc2-docs` | This document, `SECURITY.md`, README, facts sheet, changelog, follow-ups | Documentation only |
+| version | separate branch | `0.1.0-rc.2` in `package.json` / `package-lock.json` only — **no tag** | CI on all four runners |
+
+**Required merge order:** #28 → #31 → #32 → docs → version. PR #32 includes a byte-identical copy of `protected-store.ts` so it builds on its own, but its startup migration deletes plaintext rows that `origin/main` still reads; it must not be merged before #31.
+
+### User-facing impact
+
+- rc.1 users **must update** and will be **signed out once** on first rc.2 launch so the leaked session can be revoked server-side. They then sign in normally.
+- If Telegram cannot be reached, the app still removes local plaintext and shows a dialog instructing the user to revoke the session at **Telegram → Settings → Devices** before signing in again.
+- On Linux without a keyring, sign-in is memory-only for each launch. Users are warned and pointed to gnome-keyring/kwallet.
+
+### Not verifiable in CI (manual QA before stable)
+
+- Real Telegram `auth.LogOut` while online (CI never performs a real login).
+- Windows DPAPI, macOS Keychain and Linux secret-service round trips on real desktops, including a locked/absent keyring.
+- Deleting already-uploaded rc.1 Index snapshots from Telegram; the app only knows the latest snapshot message ID.
+- Real-device restoration of a signed-out user through the migration dialog.
+
+No reporter attribution is included; add credit only if the reporter agrees. No tag, release, publish or force-push was performed for rc.2.

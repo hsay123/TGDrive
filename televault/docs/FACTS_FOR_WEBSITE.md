@@ -1,6 +1,6 @@
 # TeleVault — FACTS FOR THE WEBSITE
 
-**Date:** 2026-11-17 · **Branch:** `release/packaging` · **Version in tree:** `0.1.0` (`package.json`)
+**Date:** 2026-11-22 · **Branch:** `security/rc2-docs` · **Version in tree:** `0.1.0-rc.1` (`package.json`); rc.2 security fixes documented below, pending the separate version-bump PR
 
 Every claim below is marked **CONFIRMED** (with the file and line proving it) or **NOT FOUND** (the claimed behaviour does not exist in this tree). Do not upgrade a NOT FOUND to a marketing claim without a code change. Line numbers refer to this commit; re-check after edits.
 
@@ -16,11 +16,12 @@ Every claim below is marked **CONFIRMED** (with the file and line proving it) or
 | **File name, path, MIME type and size are encrypted** | **NOT FOUND — they are PLAINTEXT** | Written as plaintext JSON into every Telegram message caption: `core/telegram/uploader.ts:44-54` (`CaptionMetadata`), `:72-73` (`JSON.stringify`), `:271,294`. Also stored in local SQLite in cleartext: `core/db/schema.ts:13-29` (`name`, `path`, `size`, `mime_type`). |
 | Folder names / structure are encrypted | **NOT FOUND — PLAINTEXT** | `core/db/schema.ts:2-11`; synced via the Index channel (`core/sync/pusher.ts`) |
 | Thumbnails are encrypted | **NOT FOUND** | Stored as local files `thumbnail_path` (`core/db/schema.ts:25`) and uploaded as separate Telegram messages |
-| The **Telegram session** is encrypted by the app at rest | **NOT FOUND — PLAINTEXT** | Saved as the setting `telegram_session` via `persistSession()` at `core/telegram/client.ts:182-187`; read back at `:189-192`; SQLite DB at `core/db/db.ts:11`. No encryption wrapper is applied. |
+| The **Telegram session, API ID and API Hash** are encrypted at rest | **CONFIRMED in the rc.2 security branch** (`0.1.0-rc.1` shipped plaintext) | Stored via Electron `safeStorage` in `<userData>/protected-credentials.json` (`core/crypto/protected-store.ts`); `core/telegram/client.ts` and `core/telegram/auth.ts` read/persist/clear them there. No plaintext `settings` rows; a source test checks the raw DB bytes. |
+| There is a plaintext fallback when no OS credential store is available | **NOT FOUND — deliberately none** | `core/crypto/protected-store.ts` reports `basic_text` / unavailable `safeStorage` and keeps values in memory for the current launch only; Setup shows an explicit warning. See `docs/SECURITY.md`. |
 
-**Safe wording:** "File *contents* are encrypted on your device with AES-256-GCM. The key stays in your OS keychain. File names, paths and metadata are **not** encrypted."
+**Safe wording:** "File *contents* are encrypted on your device with AES-256-GCM. The key stays in your OS keychain. Your Telegram credentials are protected by your OS credential store. File names, paths and metadata are **not** encrypted."
 
-**Unsafe wording:** "All your data is encrypted", "zero-knowledge", "we can't see anything" — names/paths/MIME/size are plaintext in captions and local SQLite.
+**Unsafe wording:** "All your data is encrypted", "zero-knowledge", "we can't see anything" — names/paths/MIME/size are plaintext in captions and local SQLite; `v0.1.0-rc.1` also shipped plaintext credentials.
 
 ## 2. Where data lives
 
@@ -38,8 +39,9 @@ Every claim below is marked **CONFIRMED** (with the file and line proving it) or
 | Website statement | Status | Evidence |
 |---|---|---|
 | Login uses a **user** Telegram account over MTProto (GramJS), not a bot | **CONFIRMED** | `core/telegram/client.ts:1-2,89-97`; `core/telegram/auth.ts:124-148` (`sendCode` → `signIn`) |
-| The user supplies their own `api_id` and `api_hash` | **CONFIRMED** | `core/telegram/client.ts:38-43` (settings first, env fallback for dev); `src/pages/Setup.tsx:39,88,98` |
+| The user supplies their own `api_id` and `api_hash` | **CONFIRMED** | `src/pages/Setup.tsx` collects both on first run; `core/telegram/client.ts` reads them from the protected store with `.env` as a dev-only fallback |
 | TeleVault ships shared/bundled API credentials | **NOT FOUND** | `.env` is gitignored and not in `electron-builder.yml:9-12`; first run collects credentials in `Setup.tsx` |
+| Credentials are uploaded in Index snapshots | **NOT FOUND in the rc.2 security branch** (`0.1.0-rc.1` did upload them) | `core/db/settings-keys.ts` allowlists only `auto_sync_interval` and `encryption_enabled` on both export (`core/sync/indexer.ts`) and import (`core/sync/puller.ts`); tests inspect the decompressed payload for fake secret values |
 
 ## 4. Features
 
@@ -97,6 +99,10 @@ All facts below are from the shipped config and the installed `electron-updater@
 | With no keyring, the app crashes at startup | **NOT FOUND — degrades gracefully** | keytar is loaded lazily (`secure-store.ts:35-42`), so the app starts normally. **Verified:** built app launched under xvfb with `DBUS_SESSION_BUS_ADDRESS` pointing at a nonexistent bus — `/setup` rendered with 0 console and 0 page errors (see `docs/QA_CHECKLIST.md`). |
 | A missing libsecret library yields an actionable error | **CONFIRMED (require-time only)** | If `require('keytar')` throws (libsecret `.so` absent), the error is cached and wrapped with a Debian/Ubuntu install hint (`secure-store.ts:23-33,49-54`). `credentialStoreAvailable()` (`:58-65`) exposes a side-effect-free check. |
 | An unreachable keyring daemon yields that same hint | **NOT FOUND — raw libsecret error** | If libsecret is installed but no secret service is reachable, `getSecret()` rejects with the underlying message. **Verified:** `Could not connect: No such file or directory`. Encrypted operations fail with that raw message; unencrypted use is unaffected. |
+| Telegram credentials use Electron `safeStorage` | **CONFIRMED in the rc.2 security branch** | `core/crypto/protected-store.ts` encrypts them into `<userData>/protected-credentials.json` (mode `0600`); `system:saveApiCredentials` and `system:hasApiCredentials` use it. |
+| Linux `basic_text` backend is treated as "no secure store" | **CONFIRMED in the rc.2 security branch** | `getSelectedStorageBackend() === 'basic_text'` disables persistence; values stay in memory for the run and the Setup screen warns about signing in again and installing gnome-keyring/kwallet. |
+| Credentials can be read through the generic settings IPC | **NOT FOUND in the rc.2 security branch** | `electron/ipc/settings.ipc.ts` rejects `telegram_session`, `telegram_api_id` and `telegram_api_hash` for `get`, `set` and `getAll`; `src/pages/Settings.tsx` no longer reads the API ID from settings. |
+| The API ID value is printed to logs | **NOT FOUND in the rc.2 security branch** (`0.1.0-rc.1` did print it) | `electron/ipc/setup.ipc.ts` logs only that credentials were saved and whether both are present. `tests/unit/secret-log-safety.test.ts` greps all production sources for credential-bearing log calls. `tv-smoke.log` and electron-log only receive URLs/status/error messages; no crash-dump reporter exists. |
 
 ## 7. Supported platforms and minimum OS versions
 
@@ -142,6 +148,17 @@ These rows describe the behaviour after the release-hardening items land. Re-che
 **Safe wording:** "Deleting a file permanently deletes its recorded Telegram messages and local records; cached thumbnails, old sync snapshots and archived version messages may remain."
 
 **Unsafe wording:** "deleting a file erases it from Telegram", "encrypted files can be recovered", "we escrow your key".
+
+### 9a. Old Index snapshots already uploaded by rc.1 (assessed 2026-11-22)
+
+**No — the app cannot identify or delete old snapshot messages.** A read-only audit of `origin/main` found exactly one Telegram deletion call, `tg.deleteMessages(..., { revoke: true })` at `electron/ipc/files.ipc.ts:102`, and it is fed only recorded **file-chunk** IDs (`deleteChunksFromTelegram()`, `:71-105`) from `permanentlyDeleteFile()` (`:115-126`). It never receives snapshot message IDs.
+
+- Snapshots are recognised on upload only by their caption (`core/sync/pusher.ts:23-31`, `{"tv":true,"type":"index",...}`), but no history search, `getHistory`, caption scan or `iterMessages` exists in the app — only ID-based fetches of the single cursor (`core/sync/puller.ts:14-25`).
+- `last_index_message_id` is overwritten on every push (`core/sync/pusher.ts:34`), so it identifies only the newest snapshot. Deleting that one message would also break `pullIndex()` until the next push.
+- `sync_log` stores push message IDs (`core/sync/pusher.ts:36-40`; schema `core/db/schema.ts:65-72`) but nothing reads them for deletion; `getSyncStatus()` selects only `synced_at, status` (`core/sync/puller.ts:161-183`).
+- rc.1 and `origin/main` share the same snapshot code: `core/sync/indexer.ts:21-44` uses `SELECT * FROM settings`, gzip-encodes the result, and `core/sync/pusher.ts:22-32` uploads it. rc.1 snapshots therefore contain **the plaintext session string**, API ID/hash, channel IDs + access hashes, `last_user` profile data and `avatar_path` — compressed, not encrypted.
+
+**Residual risk that a local app change cannot remove:** already-uploaded messages stay in the user's Telegram account with those values. Users must delete them in Telegram themselves (they are identifiable by the `type: "index"` caption) and treat the API credentials/session as exposed: revoke devices in Telegram → Settings → Devices and rotate API credentials at my.telegram.org if needed. New snapshots are safe in rc.2 because of the allowlist in #28.
 
 ## Unsafe claims to avoid until code changes
 
