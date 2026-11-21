@@ -52,7 +52,6 @@ export default function Settings() {
   const [encryptionStatus, setEncryptionStatus] = useState<EncryptionStatus | null>(null)
   const [isLoggingOut, setIsLoggingOut] = useState(false)
   const [isBackfilling, setIsBackfilling] = useState(false)
-  const [maskedApiId, setMaskedApiId] = useState<string | null>(null)
   const [storageUsed, setStorageUsed] = useState(0)
 
   useEffect(() => {
@@ -75,13 +74,6 @@ export default function Settings() {
     })
     window.televault.system.getAppVersion().then((r) => {
       if (r.success && r.data) setVersion(r.data)
-    })
-    // Load API ID for display (masked)
-    window.televault.settings.get('telegram_api_id').then((r) => {
-      if (r.success && r.data) {
-        const id = r.data
-        setMaskedApiId(id.length > 3 ? `${id.slice(0, 3)}${'•'.repeat(id.length - 3)}` : '•••')
-      }
     })
   }, [])
 
@@ -245,12 +237,9 @@ export default function Settings() {
                 <h3 className="font-semibold text-gray-100">Telegram API</h3>
               </div>
               <div className="space-y-3">
-                {maskedApiId && (
-                  <div className="rounded-lg border border-gray-800 bg-gray-800/50 px-3 py-2.5 flex items-center gap-2">
-                    <span className="text-xs text-gray-500">API ID</span>
-                    <code className="text-xs font-mono text-gray-300 ml-auto">{maskedApiId}</code>
-                  </div>
-                )}
+                <p className="text-xs text-gray-500">
+                  API ID and API Hash are stored in your OS credential store, not in the app database.
+                </p>
                 <p className="text-xs text-gray-500">
                   Need to use a different Telegram account? Re-enter your API credentials below.
                 </p>

@@ -110,6 +110,9 @@ export interface TeleVaultAPI {
     openExternal: (url: string) => Promise<IpcResult<void>>
     saveApiCredentials: (apiId: string, apiHash: string) => Promise<IpcResult<void>>
     hasApiCredentials: () => Promise<IpcResult<boolean>>
+    credentialStorageStatus: () => Promise<
+      IpcResult<{ persisted: boolean; backend: string; message: string | null }>
+    >
     getAvatarUrl: () => Promise<IpcResult<string | null>>
     refreshAvatar: () => Promise<IpcResult<string | null>>
     getPersistedUser: () => IpcResult<{ user: TGUser; avatarUrl: string | null } | null>

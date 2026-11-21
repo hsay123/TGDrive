@@ -2,6 +2,11 @@ import { TelegramClient } from 'telegram'
 import { StringSession } from 'telegram/sessions'
 import { Api } from 'telegram'
 import { getDb } from '../db/db'
+import {
+  deleteProtected,
+  readProtected,
+  writeProtected,
+} from '../crypto/protected-store'
 
 export const CHUNK_SIZE_MB = 512 * 1024
 
@@ -23,24 +28,17 @@ let _client: TelegramClient | null = null
 let _session: StringSession | null = null
 
 /**
- * Read API credentials from the settings DB first (user-provided via Setup page),
- * with .env as optional dev-time fallback.
+ * Read API credentials from the protected store (user-provided via Setup),
+ * with .env as an optional dev-time fallback. They are no longer read from
+ * plaintext settings rows.
  */
 function getApiCredentials(): { apiId: number; apiHash: string } {
-  const db = getDb()
-  const getSetting = (key: string): string | undefined => {
-    const row = db.prepare('SELECT value FROM settings WHERE key = ?').get(key) as
-      | { value: string }
-      | undefined
-    return row?.value
-  }
-
   const apiId = parseInt(
-    getSetting('telegram_api_id') ?? process.env.TELEGRAM_API_ID ?? '',
+    readProtected('telegram_api_id') ?? process.env.TELEGRAM_API_ID ?? '',
     10
   )
   const apiHash =
-    getSetting('telegram_api_hash') ?? process.env.TELEGRAM_API_HASH ?? ''
+    readProtected('telegram_api_hash') ?? process.env.TELEGRAM_API_HASH ?? ''
 
   if (!apiId || !apiHash) {
     throw new Error('Telegram API credentials not configured. Please complete setup.')
@@ -180,12 +178,23 @@ export function getSessionString(): string {
 }
 
 export function persistSession(): void {
-  setSetting('telegram_session', getSessionString())
+  // OS-encrypted when available; otherwise the StringSession already lives in
+  // `_session` for this run only. Never a plaintext settings row.
+  writeProtected('telegram_session', getSessionString())
+}
+
+/** Remove any persisted session (and the in-memory copy of the stored value). */
+export function clearPersistedSession(): void {
+  deleteProtected('telegram_session')
+}
+
+/** Read the saved session string, or '' when the user must sign in again. */
+export function getPersistedSession(): string {
+  return readProtected('telegram_session') ?? ''
 }
 
 export async function ensureClientFromSettings(): Promise<TelegramClient> {
-  const saved = getSetting('telegram_session') ?? ''
-  return initClient(saved)
+  return initClient(getPersistedSession())
 }
 
 export function getApiCredentialsExport(): { apiId: number; apiHash: string } {

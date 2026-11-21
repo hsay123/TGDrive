@@ -114,6 +114,7 @@ const televault: TeleVaultAPI = {
     saveApiCredentials: (apiId, apiHash) =>
       ipcRenderer.invoke('system:saveApiCredentials', apiId, apiHash),
     hasApiCredentials: () => ipcRenderer.invoke('system:hasApiCredentials'),
+    credentialStorageStatus: () => ipcRenderer.invoke('system:credentialStorageStatus'),
     getAvatarUrl: () => ipcRenderer.invoke('system:getAvatarUrl'),
     refreshAvatar: () => ipcRenderer.invoke('system:refreshAvatar'),
     getPersistedUser: () => ipcRenderer.sendSync('system:getPersistedUser'),
