@@ -8,7 +8,8 @@ import {
   initClient,
   mapApiUser,
   persistSession,
-  deleteSetting,
+  clearPersistedSession,
+  getPersistedSession,
   warmEntityCache,
   type TGUser,
 } from './client'
@@ -134,7 +135,7 @@ export async function sendCode(
       if (!client.connected) await client.connect()
     } catch {
       console.log('[auth] Client not initialized, lazy-initializing from saved session...')
-      const savedSession = getSetting('telegram_session') ?? ''
+      const savedSession = getPersistedSession()
       await initClient(savedSession)
       client = getClient()
     }
@@ -308,13 +309,13 @@ export async function signOut(): Promise<void> {
   } finally {
     clearEntityCache()
     await destroyClient()
-    deleteSetting('telegram_session')
+    clearPersistedSession()
   }
 }
 
 export async function getCurrentUser(): Promise<TGUser | null> {
   try {
-    const session = getSetting('telegram_session')
+    const session = getPersistedSession()
     if (!session) {
       return null
     }
@@ -323,7 +324,7 @@ export async function getCurrentUser(): Promise<TGUser | null> {
     const client = getClient()
     const authorized = await client.checkAuthorization()
     if (!authorized) {
-      deleteSetting('telegram_session')
+      clearPersistedSession()
       await destroyClient()
       return null
     }
@@ -361,7 +362,7 @@ export async function getCurrentUser(): Promise<TGUser | null> {
       (error as { errorMessage: string }).errorMessage === 'AUTH_KEY_UNREGISTERED'
     ) {
       console.warn('[auth] Stale session detected, clearing and redirecting to login')
-      deleteSetting('telegram_session')
+      clearPersistedSession()
       await destroyClient()
       return null
     }
@@ -372,7 +373,7 @@ export async function getCurrentUser(): Promise<TGUser | null> {
 
 export async function hasValidSession(): Promise<boolean> {
   try {
-    const session = getSetting('telegram_session')
+    const session = getPersistedSession()
     if (!session) {
       return false
     }
@@ -381,7 +382,7 @@ export async function hasValidSession(): Promise<boolean> {
     const client = getClient()
     const authorized = await client.checkAuthorization()
     if (!authorized) {
-      deleteSetting('telegram_session')
+      clearPersistedSession()
       await destroyClient()
       return false
     }
@@ -394,7 +395,7 @@ export async function hasValidSession(): Promise<boolean> {
       (error as { errorMessage: string }).errorMessage === 'AUTH_KEY_UNREGISTERED'
     ) {
       console.warn('[auth] Stale session in hasValidSession, clearing')
-      deleteSetting('telegram_session')
+      clearPersistedSession()
       await destroyClient()
       return false
     }

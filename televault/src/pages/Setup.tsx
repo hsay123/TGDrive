@@ -10,11 +10,20 @@ export default function Setup() {
   const [apiHash, setApiHash] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [storageWarning, setStorageWarning] = useState<string | null>(null)
 
   // Smoke-only: signal that the first-run screen actually mounted (no-op unless
   // TELEVAULT_SMOKE=1 — see preload). Gives CI a renderer-side readiness marker.
   useEffect(() => {
     window.televault.system.notifyRendererReady()
+  }, [])
+
+  useEffect(() => {
+    window.televault.system.credentialStorageStatus().then((result) => {
+      if (result.success && result.data && !result.data.persisted) {
+        setStorageWarning(result.data.message)
+      }
+    })
   }, [])
 
   async function handleSave() {
@@ -88,6 +97,15 @@ export default function Setup() {
             </ol>
           </div>
 
+          {storageWarning && (
+            <p
+              role="alert"
+              className="rounded-lg border border-amber-700/60 bg-amber-950/40 p-3 text-xs leading-relaxed text-amber-300"
+            >
+              {storageWarning}
+            </p>
+          )}
+
           {/* Inputs */}
           <div className="space-y-3">
             <Input
@@ -127,8 +145,8 @@ export default function Setup() {
 
         {/* Footer note */}
         <p className="mt-5 text-center text-xs text-gray-600 leading-relaxed">
-          Your credentials are stored locally on this device only.<br />
-          They are never sent to our servers.
+          Your credentials are protected by your OS credential store when available,<br />
+          and are never sent to our servers.
         </p>
       </div>
     </div>

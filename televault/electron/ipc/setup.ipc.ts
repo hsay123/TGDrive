@@ -1,7 +1,11 @@
 import type { IpcMain } from 'electron'
 import { ipcResult } from './helpers'
-import { getSetting, setSetting } from '../../core/db/settings.db'
 import { shell } from 'electron'
+import {
+  getCredentialStorageStatus,
+  hasProtected,
+  writeProtected,
+} from '../../core/crypto/protected-store'
 
 export function registerSetupIpc(ipcMain: IpcMain): void {
   ipcMain.handle('system:openExternal', async (_event, url: string) =>
@@ -16,33 +20,30 @@ export function registerSetupIpc(ipcMain: IpcMain): void {
         throw new Error('Both API ID and Hash are required')
       }
 
-      // 1. Save FIRST — always, before anything else
+      // Save FIRST, into OS-encrypted storage — never plaintext settings rows.
       const trimId = apiId.trim()
       const trimHash = apiHash.trim()
-      setSetting('telegram_api_id', trimId)
-      setSetting('telegram_api_hash', trimHash)
-      console.log('[setup] Saved credentials — apiId:', trimId, '| hash length:', trimHash.length)
-      console.log('[setup] Verify read-back:', getSetting('telegram_api_id'))
+      const idPersisted = writeProtected('telegram_api_id', trimId)
+      const hashPersisted = writeProtected('telegram_api_hash', trimHash)
+      // never log credential values — not even the numeric API ID
+      console.log('[setup] Saved credentials — persisted:', idPersisted && hashPersisted)
 
-      // 2. Reinit client — non-fatal, login page will handle client init
+      // Reinit client — non-fatal, login page will handle client init
       try {
         const { reinitClient } = await import('../../core/telegram/client')
         await reinitClient()
         console.log('[setup] Client reinitialized')
       } catch (err) {
         console.warn('[setup] reinitClient failed (non-fatal):', err)
-        // Don't throw — credentials are saved, sendCode will lazily init the client
       }
     })
   )
 
   ipcMain.handle('system:hasApiCredentials', async () =>
-    ipcResult(() => {
-      const apiId = getSetting('telegram_api_id')
-      const apiHash = getSetting('telegram_api_hash')
-      const has = !!(apiId && apiHash)
-      console.log('[setup] hasApiCredentials check:', has, '(apiId:', apiId, ')')
-      return has
-    })
+    ipcResult(() => hasProtected('telegram_api_id', 'telegram_api_hash'))
+  )
+
+  ipcMain.handle('system:credentialStorageStatus', async () =>
+    ipcResult(() => getCredentialStorageStatus())
   )
 }
