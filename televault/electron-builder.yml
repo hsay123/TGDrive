@@ -82,7 +82,7 @@ linux:
     entry:
       Name: TeleVault
       Comment: Your Telegram account as a real cloud drive
-      Categories: Utility;FileTools;Network;
+      Categories: Utility;Network;FileTransfer;
 
 publish:
   provider: github
