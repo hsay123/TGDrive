@@ -21,8 +21,8 @@ export function registerSetupIpc(ipcMain: IpcMain): void {
       const trimHash = apiHash.trim()
       setSetting('telegram_api_id', trimId)
       setSetting('telegram_api_hash', trimHash)
-      console.log('[setup] Saved credentials — apiId:', trimId, '| hash length:', trimHash.length)
-      console.log('[setup] Verify read-back:', getSetting('telegram_api_id'))
+      // never log credential values — not even the numeric API ID
+      console.log('[setup] Saved credentials')
 
       // 2. Reinit client — non-fatal, login page will handle client init
       try {
@@ -41,7 +41,7 @@ export function registerSetupIpc(ipcMain: IpcMain): void {
       const apiId = getSetting('telegram_api_id')
       const apiHash = getSetting('telegram_api_hash')
       const has = !!(apiId && apiHash)
-      console.log('[setup] hasApiCredentials check:', has, '(apiId:', apiId, ')')
+      console.log('[setup] hasApiCredentials check:', has)
       return has
     })
   )
