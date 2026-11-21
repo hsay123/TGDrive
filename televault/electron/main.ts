@@ -16,6 +16,7 @@ import { ipcResult } from './ipc/helpers'
 import { registerSystemAvatarIpc } from './ipc/system.ipc'
 import { registerRevealIpc } from './ipc/reveal.ipc'
 import { registerTrashExpiry } from './ipc/trash-expiry'
+import { runStartupSecurityMigration } from './security-migration'
 
 // Only load .env in development. A packaged build must never be influenced by a
 // stray .env in the working directory, and no .env values are bundled.
@@ -203,7 +204,7 @@ function isPathInsideDir(baseDir: string, targetPath: string): boolean {
   return resolved.startsWith(base)
 }
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
   const userDataPath = app.getPath('userData')
   const allowedDirs = [
     path.join(userDataPath, 'thumbnails'),
@@ -269,6 +270,10 @@ app.whenReady().then(() => {
   })
 
   getDb()
+  // One-time cleanup of rc.1's plaintext credentials must finish before the
+  // setup/auth IPC handlers are registered, so no handler can observe a stale
+  // plaintext row. Awaited so the notice dialog is ready with the first screen.
+  await runStartupSecurityMigration()
   ensureRootFolder()
   registerAllIpc()
   createWindow()
