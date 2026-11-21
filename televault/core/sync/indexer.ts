@@ -7,6 +7,7 @@ import type {
   Version,
   Setting,
 } from '../db/schema'
+import { SNAPSHOT_SETTING_KEYS } from '../db/settings-keys'
 
 export interface IndexSnapshot {
   version: number
@@ -25,7 +26,13 @@ export function buildIndexSnapshot(): IndexSnapshot {
   const files = db.prepare('SELECT * FROM files').all() as File[]
   const chunks = db.prepare('SELECT * FROM chunks').all() as Chunk[]
   const versions = db.prepare('SELECT * FROM versions').all() as Version[]
-  const settings = db.prepare('SELECT * FROM settings').all() as Setting[]
+  // Never snapshot the whole settings table: it contains credentials and
+  // private-channel identifiers. Only the explicit preference allowlist is
+  // safe to upload to the Index channel.
+  const placeholders = SNAPSHOT_SETTING_KEYS.map(() => '?').join(', ')
+  const settings = db
+    .prepare(`SELECT key, value FROM settings WHERE key IN (${placeholders})`)
+    .all(...SNAPSHOT_SETTING_KEYS) as Setting[]
 
   return {
     version: 1,

@@ -7,6 +7,7 @@ import { getChannelEntity } from '../telegram/channels'
 import { withRetry } from '../telegram/ratelimit'
 import { getSetting, setSetting } from '../db/settings.db'
 import { backupDatabaseBeforePull, getDb } from '../db/db'
+import { filterSnapshotSettings } from '../db/settings-keys'
 import { deserializeIndex } from './indexer'
 
 export async function pullIndex(): Promise<void> {
@@ -118,10 +119,8 @@ export async function pullIndex(): Promise<void> {
         )
       }
 
-      for (const setting of snapshot.settings) {
-        if (setting.key !== 'telegram_session') {
-          setSetting(setting.key, setting.value)
-        }
+      for (const setting of filterSnapshotSettings(snapshot.settings)) {
+        setSetting(setting.key, setting.value)
       }
     })
 
