@@ -2,10 +2,12 @@
 
 > Your Telegram account as a real cloud drive.
 
-TeleVault is a desktop app that uses your Telegram account as unlimited, free cloud storage —
-with real nested folders, client-side encryption, cross-device sync, and file versioning.
+TeleVault is a desktop app that uses your Telegram account as cloud storage — with real
+nested folders, client-side encryption, cross-device sync, and file versioning (in progress).
+No monthly storage bills: your files, your Telegram, your control.
 
-No monthly storage bills. Your files, your Telegram, your control.
+**Looking to contribute?** Jump to [Contributing](#contributing) for the repository layout,
+per-OS setup, the development loop, and the clean-PR workflow.
 
 ---
 
@@ -57,7 +59,7 @@ These are free and personal to your account. TeleVault uses them to connect as a
 
 ### 2. Install and run
 
-**Download** the installer for your platform, or build from source:
+Download the installer for your platform, or [build from source](#build-from-source):
 
 ```bash
 git clone https://github.com/hsay123/TGDrive.git
@@ -75,7 +77,7 @@ npm run dev
 
 ### 3. First launch
 
-TeleVault will create **3 private channels** in your Telegram account automatically:
+TeleVault creates **3 private channels** in your Telegram account automatically:
 
 | Channel | Purpose |
 |---|---|
@@ -99,14 +101,219 @@ These are regular private Telegram channels. You can see them in Telegram but sh
 
 ---
 
+# Contributing
+
+This section is the map for people working on the code. Run every `npm` command from
+`televault/`, not from the repository root.
+
+## Repository layout
+
+```text
+.
+├── .github/workflows/        # CI + release; MUST be at repo root
+│   ├── build.yml             # typecheck, tests, build:dir, smoke on 4 runners
+│   └── release.yml           # tag-driven installers + draft GitHub release
+├── assets/                   # root-level logos
+└── televault/                # the whole Electron application
+```
+
+Inside `televault/`:
+
+```text
+televault/
+├── .env.example              # template: TELEGRAM_API_ID, TELEGRAM_API_HASH (dev only)
+├── package.json / lock       # scripts, dependencies; version 0.1.0-rc.2
+├── vite.config.ts            # renderer dev server (:5173) → dist/
+├── vitest.config.ts          # unit tests in tests/unit/**
+├── tsconfig*.json            # renderer typecheck / main-process build / vite config
+├── electron-builder.yml      # packaging, signing, publish provider
+├── index.html                # Vite HTML entry
+├── build/                    # entitlements plists; generated icons
+├── electron/                 # PRIVILEGED main process (Node, native modules)
+│   ├── main.ts               # entry point: DB → migration → IPC → window
+│   ├── preload.ts            # contextBridge: window.televault.*
+│   ├── types.ts              # canonical shared IPC/domain types
+│   ├── security-migration.ts # one-time rc.1 credential migration
+│   ├── updater.ts            # electron-updater (check/notify only)
+│   └── ipc/                  # one handler module per domain
+│       (auth, files, folders, settings, setup, sync, system, reveal, trash-expiry, …)
+├── core/                     # framework-agnostic business logic
+│   ├── db/                   # SQLite schema, migrations, per-table helpers,
+│   │                         # settings allowlist, legacy-session-migration
+│   ├── telegram/             # gramjs client, auth, channels, upload, download,
+│   │                         # copy, rate-limit retry
+│   ├── sync/                 # index snapshot build → push → pull (last-writer-wins)
+│   ├── crypto/               # AES-256-GCM, keychain key, safeStorage credentials, PIN
+│   ├── fs/                   # 512 MiB chunker, path tree, virtual filesystem
+│   └── reveal-gate.ts        # in-memory hidden-file unlock
+├── src/                      # React renderer (never imports Electron directly)
+│   ├── main.tsx / App.tsx    # root + HashRouter shell (needed for file:// builds)
+│   ├── pages/                # Setup, Login, Drive, Settings
+│   ├── components/           # files, folders, upload, download, layout, shared
+│   ├── hooks/                # upload, download, search, sync, auth, update, …
+│   ├── store/                # Zustand: auth, files, folders, tree, upload, …
+│   ├── lib/ / utils/ / types/
+│   └── assets/               # source PNGs for npm run icons
+├── scripts/                  # test runners + build helpers
+│   ├── run-tests.mjs         # Vitest inside Electron's Node runtime (native ABI)
+│   ├── smoke-test.mjs        # Playwright launch of a BUILT app, temp user-data-dir
+│   ├── generate-icons.mjs / generate-checksums.mjs
+│   └── merge-mac-update-metadata.mjs  # release workflow only
+├── tests/unit/               # 15 Vitest files; no e2e tree
+├── docs/                     # SETUP, SECURITY, TROUBLESHOOTING, QA, release, facts
+└── bench/ / test-copy.js     # optional local benchmarks / ad-hoc diagnostic
+```
+
+Generated and **never committed**: `node_modules/`, `dist/`, `dist-electron/`,
+`release/`, `.env`, `*.db`, `*.session`, `thumbnails/`, `build/icon.*`, local logs. The full
+list is in `televault/.gitignore`.
+
+## How the app works
+
+1. **Start-up** — `electron/main.ts` opens `<userData>/televault.db`, runs the one-time
+   rc.1 credential migration, ensures the root folder, registers IPC handlers, then creates
+   the window. In dev it loads `http://localhost:5173`; packaged it loads `dist/index.html`
+   via a `file://` URL, which is why routing is hash-based.
+2. **Renderer ↔ main** — the renderer calls `window.televault.<domain>.<method>()`, exposed by
+   `electron/preload.ts` with `contextIsolation: true` and `nodeIntegration: false`. Handlers
+   live in `electron/ipc/*` and return `{ success, data?, error? }` via `helpers.ts`.
+   **Never import `app`, `fs`, or native modules in `src/`.** Shared types live in
+   `electron/types.ts` and are re-exported through `src/types/index.ts`.
+3. **Storage** — SQLite in `<userData>/televault.db` (WAL mode) holds files, folders, chunks,
+   versions, trash, settings and sync status. File bytes live as encrypted chunks in the
+   user's own private Telegram channels.
+4. **Sync** — `core/sync/indexer.ts` gzips folders/files/chunks plus an explicit settings
+   allowlist (`core/db/settings-keys.ts`), `pusher.ts` uploads it to the Index channel, and
+   `puller.ts` downloads the latest snapshot and replaces local rows. Do not add keys to
+   that allowlist without a specific reason — credentials and channel access hashes must
+   never cross the device boundary.
+5. **Credentials** — Telegram session/API ID/API hash are in Electron `safeStorage`
+   (`core/crypto/protected-store.ts`), the AES key and reveal PIN are in the OS keychain
+   via keytar (`core/crypto/secure-store.ts`). There is no plaintext fallback.
+
+App data directories: `%APPDATA%\TeleVault` (Windows), `~/Library/Application Support/TeleVault`
+(macOS), `~/.config/TeleVault` (Linux).
+
+## Set up on your device
+
+### All platforms
+
+| Tool | Use |
+|---|---|
+| **Node.js 22 LTS** | CI uses Node 22; README minimum is 20+, but match CI locally |
+| **npm 10+** | bundled with Node 22 |
+| **Git** | clone and branches |
+| **Python 3.11** + C++ build tools | required by `node-gyp` for `better-sqlite3` and `keytar` |
+
+Clone into a path **without parentheses or spaces** (for example `~/dev/TGDrive`). `npm ci`
+inside a path containing `(Copy 2)` is known to break `node-gyp`.
+
+```bash
+git clone https://github.com/hsay123/TGDrive.git
+cd TGDrive/televault
+cp .env.example .env
+# Fill in TELEGRAM_API_ID and TELEGRAM_API_HASH (development only)
+npm install
+```
+
+`npm install` runs `postinstall` → `npm run rebuild`, which rebuilds native modules for the
+installed Electron version. If it fails, run `npm run rebuild` manually.
+
+### Windows
+
+1. Install Node.js 22 LTS from nodejs.org and Git for Windows.
+2. Install **Visual Studio Build Tools** → "Desktop development with C++" workload, and
+   Python 3.11 (avoid Python 3.12+, where `distutils` was removed).
+3. Follow the all-platform steps above, then `npm run dev`.
+4. Packaging: `npm run build:win` produces an NSIS `.exe`. Unsigned builds trigger
+   SmartScreen on first run.
+
+### macOS
+
+1. Install Node.js 22 LTS, then `xcode-select --install`.
+2. Follow the all-platform steps above, then `npm run dev`.
+3. `npm run build:mac` must run **on macOS**; it produces x64 and arm64 `.dmg`/`.zip`.
+   Unsigned apps need Gatekeeper exceptions; see `docs/TROUBLESHOOTING.md`.
+
+### Linux
+
+1. Install Node.js 22 LTS and build tools:
+   ```bash
+   sudo apt install python3 python3-pip build-essential libsecret-1-0 gnome-keyring
+   # Fedora/Arch: sudo dnf install libsecret ... / sudo pacman -S libsecret ...
+   ```
+2. Make sure GNOME Keyring or KDE Wallet is running. Without a keyring, sign-in is
+   memory-only for the launch and encryption is unavailable — there is no plaintext fallback.
+3. Follow the all-platform steps above, then `npm run dev`.
+4. Packaging: `npm run build:linux` (AppImage + deb; rpm is CI-only). For headless smoke
+   tests use `xvfb-run -a npm run test:smoke`.
+
+## Everyday development
+
+```bash
+npm run dev                                   # Vite + tsc -w + Electron on :5173
+npx tsc -p tsconfig.json --noEmit              # typecheck renderer + core + main
+npx tsc -p tsconfig.electron.json --noEmit     # typecheck main-process build
+npm test                                      # Vitest via Electron's Node runtime
+npm run build:dir                             # unpacked build in release/ (fast packaging check)
+xvfb-run -a npm run test:smoke                # Linux headless smoke (after a build)
+```
+
+`npm test` deliberately runs Vitest through Electron's Node runtime: native modules are
+rebuilt for Electron's ABI, so plain host `node` cannot load them. `npm run test:smoke`
+needs a prior build and launches the built app with a temporary user-data dir.
+
+### Don't disturb the app while developing
+
+- `npm run dev` uses your **real** `<userData>` folder. Use a dedicated test Telegram
+  account, or a separate OS user/container, if you don't want development to touch your
+  real drive, channels or session.
+- Do not manually edit the three private Telegram channels; TeleVault owns their messages.
+- Never commit `.env`, `*.db`, `*.session`, `protected-credentials.json`, backup files,
+  logs, signing material (`*.pem`, `*.p12`, `*.pfx`, `*.key`) or generated `dist*/release/`.
+- Tests must use fake, seeded values. Never put a real session, API hash, phone number or
+  uploaded file into a test, log message, commit or issue.
+- Prefer `git add <specific files>` over `git add -A` so generated files cannot slip in.
+
+## How we work — clean PRs
+
+1. **Start from fresh `main`.** `git fetch origin && git switch -c short-topic-name origin/main`.
+   Never commit directly to `main`.
+2. **One concern per PR.** Small, reviewable changes are merged in a deliberate order; do
+   not bundle unrelated fixes into one branch.
+3. **Target `main`.** CI runs on `pull_request` into `main` only. A PR into another feature
+   branch gets no checks, so stacked PRs are avoided.
+4. **Verify locally** before pushing: both typechecks, `npm test`, `npm run build:dir`, and
+   the smoke test when packaging behaviour changed. Then `git diff --check`.
+5. **Push a branch, open a PR.** `git push -u origin short-topic-name`, then open a PR with
+   what changed, why, and how you verified it. Wait for all four CI runners to go green.
+6. **No force-push, no history rewrite, no tags, no publishing.** Address review comments
+   with new commits. Only maintainers create tags/releases, and releases start as drafts.
+7. **Keep the boundaries.** `core/` stays framework-agnostic; privileged work belongs in
+   `electron/ipc/*` behind `preload.ts`; new settings that cross devices must be reviewed
+   against `core/db/settings-keys.ts`.
+
+Before you push, this should all be true:
+
+- [ ] Branch is based on the latest `origin/main`, not a stale local branch
+- [ ] `git status` shows only the files you intend to change
+- [ ] Both typechecks and `npm test` pass locally
+- [ ] No credentials, logs, DB files, sessions or build output are in the commit
+- [ ] PR targets `main`; CI is green on Windows, macOS (both arches) and Linux
+
+Security issues go to a **private GitHub security advisory**, not a public issue; see
+`docs/SECURITY.md`.
+
+---
+
 ## Build from Source
 
-Requirements: Node.js 20+, npm 10+
+Requirements: Node.js 20+, npm 10+ (Node 22 recommended to match CI).
 
 ```bash
 npm install
 cp .env.example .env
-# Add TELEGRAM_API_ID and TELEGRAM_API_HASH
+# Add TELEGRAM_API_ID and TELEGRAM_API_HASH (dev only)
 ```
 
 | Command | Output |
@@ -171,16 +378,21 @@ check-and-notify only: `electron-updater` looks for `latest*.yml` metadata at
 
 ---
 
+## Further reading
+
+| Document | What it covers |
+|---|---|
+| `docs/SETUP.md` | Long-form dev setup and common errors |
+| `docs/SECURITY.md` | Credential storage, rc.1 exposure notice, reporting |
+| `docs/TROUBLESHOOTING.md` | Platform and runtime problems |
+| `docs/QA_CHECKLIST.md` | Manual test matrix before a release |
+| `docs/FOLLOW_UPS.md` | Known non-goals and planned work — a good place to pick an issue |
+| `docs/RELEASE_PROCESS.md` / `docs/RELEASE_HANDOFF.md` | Release gates and handoff |
+| `docs/FACTS_FOR_WEBSITE.md` | What is and is not true about encryption/privacy |
+
 ## Tech Stack
 
-Electron · React · TypeScript · gramjs · better-sqlite3 · TailwindCSS · AES-256-GCM
-
----
-
-## Contributing
-
-See [docs/SETUP.md](docs/SETUP.md) for development setup and
-[docs/RELEASE_PROCESS.md](docs/RELEASE_PROCESS.md) for the release handoff.
+Electron · React · TypeScript · gramjs · better-sqlite3 · keytar · TailwindCSS · Vitest · AES-256-GCM
 
 ## License
 
